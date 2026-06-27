@@ -2,7 +2,7 @@
 
 import { useMotionValue, useTransform, motion } from 'framer-motion'
 import Image from 'next/image'
-import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ExternalLink } from 'lucide-react'
+import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ArrowUpRight } from 'lucide-react'
 
 type Deal = {
   id: string
@@ -26,7 +26,7 @@ export default function DealCard({
   onSave: (id: string) => void
 }) {
   const x = useMotionValue(0)
-  const rotate = useTransform(x, [-150, 150], [-6, 6])
+  const rotate = useTransform(x, [-150, 150], [-4, 4])
   const dismissOpacity = useTransform(x, [-80, -20], [1, 0])
   const saveOpacity = useTransform(x, [20, 80], [0, 1])
 
@@ -40,72 +40,90 @@ export default function DealCard({
       style={{ x, rotate }}
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.7}
+      dragElastic={0.5}
       onDragEnd={handleDragEnd}
-      className="relative bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-grab active:cursor-grabbing select-none"
+      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      className="relative bg-[#111118] rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing select-none border border-white/[0.06]"
     >
-      {/* Swipe indicators */}
-      <motion.div style={{ opacity: dismissOpacity }} className="absolute inset-0 bg-red-50 z-10 pointer-events-none flex items-center justify-end pr-6">
-        <X className="w-8 h-8 text-red-400" />
+      {/* Swipe overlays */}
+      <motion.div
+        style={{ opacity: dismissOpacity }}
+        className="absolute inset-0 bg-red-500/10 z-10 pointer-events-none flex items-center justify-end pr-4"
+      >
+        <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center">
+          <X className="w-5 h-5 text-red-400" />
+        </div>
       </motion.div>
-      <motion.div style={{ opacity: saveOpacity }} className="absolute inset-0 bg-indigo-50 z-10 pointer-events-none flex items-center pl-6">
-        <Bookmark className="w-8 h-8 text-indigo-500" />
+      <motion.div
+        style={{ opacity: saveOpacity }}
+        className="absolute inset-0 bg-emerald-500/10 z-10 pointer-events-none flex items-center pl-4"
+      >
+        <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center">
+          <Bookmark className="w-5 h-5 text-emerald-400" />
+        </div>
       </motion.div>
 
+      {/* Main content */}
       <div className="flex gap-3 p-3">
-        {/* Image */}
-        <div className="relative w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
+        <div className="relative w-[72px] h-[72px] flex-shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
           {deal.image_url ? (
             <Image src={deal.image_url} alt={deal.title} fill className="object-cover" unoptimized />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <ShoppingBag className="w-8 h-8 text-gray-300" />
+              <ShoppingBag className="w-7 h-7 text-white/20" />
             </div>
           )}
         </div>
 
-        {/* Text */}
-        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-          <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">{deal.title}</p>
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex items-center gap-2">
-              {deal.price && <span className="text-base font-bold text-indigo-600">{deal.price}</span>}
-              {deal.merchant && <span className="text-xs text-gray-400">{deal.merchant}</span>}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold">
-                <Flame className="w-3.5 h-3.5" />{deal.temperature}
-              </span>
-              <span className="flex items-center gap-0.5 text-xs text-gray-400">
-                <MessageCircle className="w-3 h-3" />{deal.comment_count ?? 0}
-              </span>
-              <a
-                href={deal.deal_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                className="flex items-center gap-0.5 text-xs text-indigo-500 font-medium hover:underline"
-              >
-                View <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
+        <div className="flex-1 min-w-0 flex flex-col py-0.5 gap-1.5">
+          <p className="text-sm font-medium text-[#ededef] line-clamp-2 leading-snug tracking-tight">
+            {deal.title}
+          </p>
+          <div className="flex items-center gap-1.5">
+            {deal.price && (
+              <span className="text-sm font-bold text-white">{deal.price}</span>
+            )}
+            {deal.merchant && (
+              <span className="text-xs text-[#8a8f98]">{deal.merchant}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[11px] font-semibold ring-1 ring-amber-500/20">
+              <Flame className="w-2.5 h-2.5" />
+              {deal.temperature}°
+            </span>
+            <span className="flex items-center gap-1 text-[11px] text-[#8a8f98]">
+              <MessageCircle className="w-2.5 h-2.5" />
+              {deal.comment_count ?? 0}
+            </span>
+            <a
+              href={deal.deal_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="ml-auto flex items-center gap-0.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+            >
+              View <ArrowUpRight className="w-2.5 h-2.5" />
+            </a>
           </div>
         </div>
       </div>
 
-      {/* Action row */}
-      <div className="flex border-t border-gray-100 divide-x divide-gray-100">
+      {/* Pill icon-only action buttons */}
+      <div className="flex items-center justify-between px-3 pb-3">
         <button
           onClick={() => onDismiss(deal.id)}
-          className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-sm text-gray-400 hover:bg-red-50 hover:text-red-400 transition-colors"
+          aria-label="Dismiss deal"
+          className="w-9 h-9 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-red-500/10 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
         >
-          <X className="w-4 h-4" /> Dismiss
+          <X className="w-4 h-4" />
         </button>
         <button
           onClick={() => onSave(deal.id)}
-          className="flex-1 py-2.5 flex items-center justify-center gap-1.5 text-sm text-gray-400 hover:bg-indigo-50 hover:text-indigo-500 transition-colors"
+          aria-label="Save deal"
+          className="w-9 h-9 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-indigo-500/10 hover:text-indigo-400 transition-all cursor-pointer flex items-center justify-center"
         >
-          <Bookmark className="w-4 h-4" /> Save
+          <Bookmark className="w-4 h-4" />
         </button>
       </div>
     </motion.div>
