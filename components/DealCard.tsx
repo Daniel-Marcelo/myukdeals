@@ -1,6 +1,6 @@
 'use client'
 
-import { useMotionValue, useTransform, motion } from 'framer-motion'
+import { useMotionValue, useTransform, motion, animate } from 'framer-motion'
 import Image from 'next/image'
 import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ArrowUpRight } from 'lucide-react'
 
@@ -30,19 +30,25 @@ export default function DealCard({
   const dismissOpacity = useTransform(x, [-80, -20], [1, 0])
   const saveOpacity = useTransform(x, [20, 80], [0, 1])
 
+  const flyOff = (direction: 'left' | 'right') => {
+    const target = direction === 'left' ? -600 : 600
+    animate(x, target, { duration: 0.3, ease: 'easeOut' })
+    setTimeout(() => (direction === 'left' ? onDismiss(deal.id) : onSave(deal.id)), 300)
+  }
+
   const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
-    if (info.offset.x < -80) onDismiss(deal.id)
-    else if (info.offset.x > 80) onSave(deal.id)
+    if (info.offset.x < -80) flyOff('left')
+    else if (info.offset.x > 80) flyOff('right')
+    else animate(x, 0, { type: 'spring', damping: 25, stiffness: 200 })
   }
 
   return (
     <motion.div
+      layout
+      transition={{ layout: { type: 'spring', duration: 1, bounce: 0.1 } }}
       style={{ x, rotate }}
       drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.5}
       onDragEnd={handleDragEnd}
-      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
       className="relative bg-[#111118] rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing select-none border border-white/[0.06]"
     >
       {/* Swipe overlays */}
@@ -112,14 +118,14 @@ export default function DealCard({
       {/* Pill icon-only action buttons */}
       <div className="flex items-center justify-between px-3 pb-3">
         <button
-          onClick={() => onDismiss(deal.id)}
+          onClick={() => flyOff('left')}
           aria-label="Dismiss deal"
           className="w-9 h-9 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-red-500/10 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
         >
           <X className="w-4 h-4" />
         </button>
         <button
-          onClick={() => onSave(deal.id)}
+          onClick={() => flyOff('right')}
           aria-label="Save deal"
           className="w-9 h-9 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-indigo-500/10 hover:text-indigo-400 transition-all cursor-pointer flex items-center justify-center"
         >

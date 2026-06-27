@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { RefreshCw } from 'lucide-react'
 import DealCard from './DealCard'
 
@@ -107,16 +108,18 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
           </button>
         </p>
       )}
-      <div className="flex flex-col gap-3">
-        {deals.map(deal => (
-          <DealCard
-            key={deal.id}
-            deal={deal}
-            onDismiss={handleDismiss}
-            onSave={handleSave}
-          />
-        ))}
-      </div>
+      <AnimatePresence>
+        <div className="flex flex-col gap-3">
+          {deals.map(deal => (
+            <DealCard
+              key={deal.id}
+              deal={deal}
+              onDismiss={handleDismiss}
+              onSave={handleSave}
+            />
+          ))}
+        </div>
+      </AnimatePresence>
     </div>
   )
 }
