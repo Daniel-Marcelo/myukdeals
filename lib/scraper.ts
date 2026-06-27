@@ -127,8 +127,11 @@ export async function scrapeNow(): Promise<{ hot: number; trending: number }> {
     return true
   })
 
+  if (hotDeals.length > 0) await supabase.from('deals').delete().eq('tab', 'hot')
+  if (trendingDeals.length > 0) await supabase.from('deals').delete().eq('tab', 'trending')
+
   if (allDeals.length > 0) {
-    await supabase.from('deals').upsert(allDeals, { onConflict: 'id' })
+    await supabase.from('deals').insert(allDeals)
   }
 
   await supabase
