@@ -15,6 +15,7 @@ export type Deal = {
   tab: 'hot' | 'trending'
   order_index: number
   posted_at: string | null
+  trending_for: string | null
 }
 
 const TAB_URLS: Record<'hot' | 'trending', string> = {
@@ -80,6 +81,9 @@ async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: nu
       : null
     const description = thread.description ?? null
     const comment_count = thread.commentCount ?? 0
+    const trending_for = tab === 'trending'
+      ? ($el.find('.chip--type-default .size--all-s').text().trim() || null)
+      : null
 
     deals.push({
       id,
@@ -95,6 +99,7 @@ async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: nu
       tab,
       order_index: indexOffset + index,
       posted_at,
+      trending_for,
     })
   })
 
