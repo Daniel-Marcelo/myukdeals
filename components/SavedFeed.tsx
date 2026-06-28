@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { Flame, MessageCircle, BookmarkX, ShoppingBag, ArrowUpRight } from 'lucide-react'
 import { type Deal } from './DealCard'
+import PullToRefresh from './PullToRefresh'
 
 type SavedItem = {
   deal_id: string
@@ -107,6 +108,12 @@ export default function SavedFeed() {
     setLoading(false)
   }, [])
 
+  const refresh = useCallback(async () => {
+    const res = await fetch('/api/saved', { cache: 'no-store' })
+    const data = await res.json()
+    setItems(data.saved ?? [])
+  }, [])
+
   useEffect(() => {
     fetchSaved()
   }, [fetchSaved])
@@ -130,22 +137,22 @@ export default function SavedFeed() {
     )
   }
 
-  if (items.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-28 px-6">
-        <p className="text-base font-semibold text-[#ededef]">No saved deals</p>
-        <p className="text-sm text-[#8a8f98] mt-1 text-center">Swipe right on a deal to save it.</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="max-w-xl mx-auto px-3 py-4">
-      <div className="flex flex-col gap-3">
-        {items.map(item => (
-          <SavedCard key={item.deal_id} item={item} onUnsave={handleUnsave} />
-        ))}
+    <PullToRefresh onRefresh={refresh}>
+      <div className="max-w-xl mx-auto px-3 py-4">
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-28 px-6">
+            <p className="text-base font-semibold text-[#ededef]">No saved deals</p>
+            <p className="text-sm text-[#8a8f98] mt-1 text-center">Swipe right on a deal to save it.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {items.map(item => (
+              <SavedCard key={item.deal_id} item={item} onUnsave={handleUnsave} />
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+    </PullToRefresh>
   )
 }
