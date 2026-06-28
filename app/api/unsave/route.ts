@@ -6,10 +6,15 @@ export async function POST(request: Request) {
   const { data: { user } } = await client.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { deal_id, deal } = await request.json()
+  const { deal_id } = await request.json()
   if (!deal_id) return NextResponse.json({ error: 'deal_id required' }, { status: 400 })
 
-  const { error } = await client.from('saved').insert({ deal_id, user_id: user.id, deal_data: deal })
+  const { error } = await client
+    .from('saved')
+    .delete()
+    .eq('deal_id', deal_id)
+    .eq('user_id', user.id)
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })

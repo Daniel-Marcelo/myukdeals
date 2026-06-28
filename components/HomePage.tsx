@@ -1,14 +1,21 @@
 'use client'
 
-import { Flame, TrendingUp, LogOut } from 'lucide-react'
+import { Flame, TrendingUp, LogOut, Bookmark } from 'lucide-react'
 import DealFeed from '@/components/DealFeed'
+import SavedFeed from '@/components/SavedFeed'
 import { createClient } from '@/lib/supabase-browser'
 import { useRouter, usePathname } from 'next/navigation'
+
+type ActiveTab = 'hot' | 'trending' | 'saved'
 
 export default function HomePage() {
   const router = useRouter()
   const pathname = usePathname()
-  const tab = pathname === '/trending' ? 'trending' : 'hot'
+
+  const activeTab: ActiveTab =
+    pathname === '/trending' ? 'trending' :
+    pathname === '/saved' ? 'saved' :
+    'hot'
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -25,9 +32,7 @@ export default function HomePage() {
           <button
             onClick={() => router.push('/')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-              tab === 'hot'
-                ? 'bg-indigo-600 text-white'
-                : 'text-[#8a8f98] hover:text-white'
+              activeTab === 'hot' ? 'bg-indigo-600 text-white' : 'text-[#8a8f98] hover:text-white'
             }`}
           >
             <Flame className="w-3 h-3" /> Hot
@@ -35,12 +40,18 @@ export default function HomePage() {
           <button
             onClick={() => router.push('/trending')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-              tab === 'trending'
-                ? 'bg-indigo-600 text-white'
-                : 'text-[#8a8f98] hover:text-white'
+              activeTab === 'trending' ? 'bg-indigo-600 text-white' : 'text-[#8a8f98] hover:text-white'
             }`}
           >
             <TrendingUp className="w-3 h-3" /> Trending
+          </button>
+          <button
+            onClick={() => router.push('/saved')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
+              activeTab === 'saved' ? 'bg-indigo-600 text-white' : 'text-[#8a8f98] hover:text-white'
+            }`}
+          >
+            <Bookmark className="w-3 h-3" /> Saved
           </button>
         </div>
         <button
@@ -51,7 +62,12 @@ export default function HomePage() {
           <LogOut className="w-3.5 h-3.5" />
         </button>
       </header>
-      <DealFeed tab={tab} />
+
+      {activeTab === 'saved' ? (
+        <SavedFeed />
+      ) : (
+        <DealFeed tab={activeTab} />
+      )}
     </main>
   )
 }

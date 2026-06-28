@@ -3,21 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { RefreshCw } from 'lucide-react'
-import DealCard from './DealCard'
-
-type Deal = {
-  id: string
-  title: string
-  price: string | null
-  merchant: string | null
-  temperature: number
-  comment_count: number
-  image_url: string | null
-  deal_url: string
-  tab: string
-  posted_at: string | null
-  trending_for: string | null
-}
+import DealCard, { type Deal } from './DealCard'
 
 function SkeletonCard() {
   return (
@@ -57,12 +43,12 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
     })
   }
 
-  const handleSave = async (id: string) => {
-    setDeals(prev => prev.filter(d => d.id !== id))
+  const handleSave = async (deal: Deal) => {
+    setDeals(prev => prev.filter(d => d.id !== deal.id))
     await fetch('/api/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deal_id: id }),
+      body: JSON.stringify({ deal_id: deal.id, deal }),
     })
   }
 
@@ -116,4 +102,3 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
     </div>
   )
 }
-

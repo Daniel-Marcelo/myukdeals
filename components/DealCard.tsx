@@ -4,7 +4,7 @@ import { useMotionValue, useTransform, motion, animate } from 'framer-motion'
 import Image from 'next/image'
 import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ArrowUpRight, TrendingUp } from 'lucide-react'
 
-type Deal = {
+export type Deal = {
   id: string
   title: string
   price: string | null
@@ -17,6 +17,15 @@ type Deal = {
   trending_for: string | null
 }
 
+function formatAge(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 export default function DealCard({
   deal,
   onDismiss,
@@ -24,7 +33,7 @@ export default function DealCard({
 }: {
   deal: Deal
   onDismiss: (id: string) => void
-  onSave: (id: string) => void
+  onSave: (deal: Deal) => void
 }) {
   const x = useMotionValue(0)
   const rotate = useTransform(x, [-150, 150], [-4, 4])
@@ -34,7 +43,7 @@ export default function DealCard({
   const flyOff = (direction: 'left' | 'right') => {
     const target = direction === 'left' ? -600 : 600
     animate(x, target, { duration: 0.3, ease: 'easeOut' })
-    setTimeout(() => (direction === 'left' ? onDismiss(deal.id) : onSave(deal.id)), 300)
+    setTimeout(() => (direction === 'left' ? onDismiss(deal.id) : onSave(deal)), 300)
   }
 
   const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
@@ -93,6 +102,9 @@ export default function DealCard({
             {deal.merchant && (
               <span className="text-xs text-[#8a8f98]">{deal.merchant}</span>
             )}
+            {deal.posted_at && (
+              <span className="text-xs text-[#8a8f98]/50 ml-auto">{formatAge(deal.posted_at)}</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[11px] font-semibold ring-1 ring-amber-500/20">
@@ -122,7 +134,7 @@ export default function DealCard({
         </div>
       </div>
 
-      {/* Pill icon-only action buttons */}
+      {/* Action buttons */}
       <div className="flex items-center justify-between px-3 pb-3">
         <button
           onClick={() => flyOff('left')}

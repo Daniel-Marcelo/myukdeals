@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 
-export async function POST(request: Request) {
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
   const client = await createClient()
   const { data: { user } } = await client.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { deal_id, deal } = await request.json()
-  if (!deal_id) return NextResponse.json({ error: 'deal_id required' }, { status: 400 })
+  const { data: saved, error } = await client
+    .from('saved')
+    .select('deal_id, deal_data, created_at')
+    .order('created_at', { ascending: false })
 
-  const { error } = await client.from('saved').insert({ deal_id, user_id: user.id, deal_data: deal })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ saved }, { headers: { 'Cache-Control': 'no-store' } })
 }
