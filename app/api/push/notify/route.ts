@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { webpush } from '@/lib/webpush'
+import { getWebPush } from '@/lib/webpush'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +38,7 @@ export async function POST() {
 
     for (const { subscription } of subs) {
       try {
-        await webpush.sendNotification(subscription, payload)
+        await getWebPush().sendNotification(subscription, payload)
         sent++
       } catch (err: unknown) {
         // 410 Gone = subscription expired, remove it
