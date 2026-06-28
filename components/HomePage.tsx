@@ -5,7 +5,6 @@ import { Flame, TrendingUp, Bookmark, MoreHorizontal, RotateCcw, LogOut } from '
 import DealFeed from '@/components/DealFeed'
 import SavedFeed from '@/components/SavedFeed'
 import SwipeTutorial from '@/components/SwipeTutorial'
-import NotificationSetup from '@/components/NotificationSetup'
 import { createClient } from '@/lib/supabase-browser'
 import { useRouter, usePathname } from 'next/navigation'
 
@@ -41,9 +40,6 @@ export default function HomePage() {
       <header className="sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3 flex items-center justify-between">
         <span className="text-sm font-semibold tracking-tight text-white">MyUKDeals</span>
 
-        <div className="flex items-center gap-2">
-          <NotificationSetup />
-
         {/* Overflow menu */}
         <div className="relative" ref={menuRef}>
           <button
@@ -75,7 +71,6 @@ export default function HomePage() {
               </div>
             </>
           )}
-        </div>
         </div>
       </header>
 

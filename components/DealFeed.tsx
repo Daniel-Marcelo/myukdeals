@@ -23,27 +23,19 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
 
-  const triggerNotify = useCallback(() => {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      fetch('/api/push/notify', { method: 'POST' }).catch(() => {})
-    }
-  }, [])
-
   const fetchDeals = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/deals?tab=${tab}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
     setLoading(false)
-    triggerNotify()
-  }, [tab, triggerNotify])
+  }, [tab])
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/deals?tab=${tab}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
-    triggerNotify()
-  }, [tab, triggerNotify])
+  }, [tab])
 
   useEffect(() => {
     fetchDeals()
