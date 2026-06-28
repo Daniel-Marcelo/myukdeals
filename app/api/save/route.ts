@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   const { deal_id, deal } = await request.json()
   if (!deal_id) return NextResponse.json({ error: 'deal_id required' }, { status: 400 })
 
-  const { error } = await client.from('saved').upsert({ deal_id, user_id: user.id, deal_data: deal })
+  const { error } = await client.from('saved').upsert({ deal_id, user_id: user.id, deal_data: deal, saved_at: new Date().toISOString() })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })

@@ -2,13 +2,23 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
-import { Flame, MessageCircle, BookmarkX, ShoppingBag, ArrowUpRight } from 'lucide-react'
+import { Flame, MessageCircle, BookmarkX, ShoppingBag, ArrowUpRight, Clock } from 'lucide-react'
 import { type Deal } from './DealCard'
 import PullToRefresh from './PullToRefresh'
+
+function formatAge(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
 
 type SavedItem = {
   deal_id: string
   deal_data: Deal | null
+  saved_at: string | null
 }
 
 
@@ -60,7 +70,13 @@ function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string)
           </div>
         </div>
       </div>
-      <div className="flex items-center justify-end px-3 pb-3">
+      <div className="flex items-center justify-between px-3 pb-3">
+        {item.saved_at && (
+          <span className="flex items-center gap-1 text-[11px] text-[#8a8f98]/50">
+            <Clock className="w-2.5 h-2.5" />
+            Saved {formatAge(item.saved_at)}
+          </span>
+        )}
         <button
           onClick={() => onUnsave(item.deal_id)}
           aria-label="Remove from saved"
