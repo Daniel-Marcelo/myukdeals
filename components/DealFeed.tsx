@@ -81,12 +81,17 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   return (
     <PullToRefresh onRefresh={refresh}>
       <div className="max-w-xl mx-auto px-3 py-4">
-        {tab === 'trending' && (
-          <div className="mb-4 px-1">
-            <p className="text-sm font-semibold text-[#ededef]">Emerging deals</p>
-            <p className="text-xs text-[#8a8f98] mt-0.5">Sorted by the time at which they reached 100°</p>
-          </div>
-        )}
+        <div className="mb-4 px-1 flex items-baseline justify-between">
+          {tab === 'trending' ? (
+            <div>
+              <p className="text-sm font-semibold text-[#ededef]">Emerging deals</p>
+              <p className="text-xs text-[#8a8f98] mt-0.5">Sorted by the time at which they reached 100°</p>
+            </div>
+          ) : (
+            <p className="text-sm font-semibold text-[#ededef]">Hot deals</p>
+          )}
+          <span className="text-xs text-[#8a8f98]/60">{deals.length} deal{deals.length !== 1 ? 's' : ''}</span>
+        </div>
         {deals.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 px-6">
             <p className="text-base font-semibold text-[#ededef]">All caught up</p>
@@ -108,31 +113,18 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
             </button>
           </div>
         ) : (
-          <>
-            <div className="flex flex-col gap-3">
-              <AnimatePresence>
-                {deals.map(deal => (
-                  <DealCard
-                    key={deal.id}
-                    deal={deal}
-                    onDismiss={handleDismiss}
-                    onSave={handleSave}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
-            <div className="flex justify-center pt-6 pb-2">
-              <button
-                onClick={async () => {
-                  await fetch('/api/reset-dismissed', { method: 'POST' })
-                  fetchDeals()
-                }}
-                className="text-xs text-[#8a8f98]/50 hover:text-[#8a8f98] transition-colors cursor-pointer"
-              >
-                Reset dismissed
-              </button>
-            </div>
-          </>
+          <div className="flex flex-col gap-3">
+            <AnimatePresence>
+              {deals.map(deal => (
+                <DealCard
+                  key={deal.id}
+                  deal={deal}
+                  onDismiss={handleDismiss}
+                  onSave={handleSave}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
         )}
       </div>
     </PullToRefresh>

@@ -88,7 +88,7 @@ export default function HomePage() {
       </div>
 
       {/* Bottom tab bar */}
-      <nav className="fixed bottom-0 inset-x-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-white/[0.06] flex items-center justify-around px-6 pb-safe pt-2">
+      <nav className="fixed bottom-0 inset-x-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-white/[0.06] flex items-center justify-around px-6 pt-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
         <button
           onClick={() => router.push('/')}
           className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${

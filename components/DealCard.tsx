@@ -42,13 +42,20 @@ export default function DealCard({
   const saveOpacity = useTransform(x, [20, 80], [0, 1])
 
   const [justSaved, setJustSaved] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  const vibrate = (pattern: number | number[]) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(pattern)
+  }
 
   const dismiss = () => {
+    vibrate(10)
     animate(x, -600, { duration: 0.3, ease: 'easeOut' })
     setTimeout(() => onDismiss(deal.id), 300)
   }
 
   const save = () => {
+    vibrate([10, 50, 10])
     animate(x, 0, { type: 'spring', damping: 20, stiffness: 300 })
     setJustSaved(true)
     setTimeout(() => setJustSaved(false), 1000)
@@ -101,7 +108,10 @@ export default function DealCard({
         </div>
 
         <div className="flex-1 min-w-0 flex flex-col py-0.5 gap-1.5">
-          <p className="text-sm font-medium text-[#ededef] line-clamp-2 leading-snug tracking-tight">
+          <p
+            onClick={() => setExpanded(e => !e)}
+            className={`text-sm font-medium text-[#ededef] leading-snug tracking-tight cursor-pointer ${expanded ? '' : 'line-clamp-2'}`}
+          >
             {deal.title}
           </p>
           <div className="flex items-center gap-1.5">
@@ -135,9 +145,9 @@ export default function DealCard({
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="ml-auto flex items-center gap-0.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+              className="ml-auto flex items-center gap-0.5 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors min-h-[44px] min-w-[44px] justify-end"
             >
-              View <ArrowUpRight className="w-2.5 h-2.5" />
+              View <ArrowUpRight className="w-3 h-3" />
             </a>
           </div>
         </div>
@@ -148,14 +158,14 @@ export default function DealCard({
         <button
           onClick={dismiss}
           aria-label="Dismiss deal"
-          className="w-9 h-9 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-red-500/10 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
+          className="w-11 h-11 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-red-500/10 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
         >
           <X className="w-4 h-4" />
         </button>
         <button
           onClick={save}
           aria-label="Save deal"
-          className={`w-9 h-9 rounded-full transition-all cursor-pointer flex items-center justify-center ${
+          className={`w-11 h-11 rounded-full transition-all cursor-pointer flex items-center justify-center ${
             justSaved
               ? 'bg-emerald-500/15 text-emerald-400'
               : 'bg-white/[0.04] text-[#8a8f98] hover:bg-indigo-500/10 hover:text-indigo-400'

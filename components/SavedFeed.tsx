@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { Flame, MessageCircle, BookmarkX, ShoppingBag, ArrowUpRight, Clock } from 'lucide-react'
+import { useMotionValue, useTransform, motion, animate, AnimatePresence } from 'framer-motion'
 import { type Deal } from './DealCard'
 import PullToRefresh from './PullToRefresh'
 
@@ -24,10 +25,42 @@ type SavedItem = {
 
 function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string) => void }) {
   const deal = item.deal_data
+  const x = useMotionValue(0)
+  const rotate = useTransform(x, [-150, 150], [-4, 4])
+  const unsaveOpacity = useTransform(x, [-80, -20], [1, 0])
+
   if (!deal) return null
 
+  const unsave = () => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10)
+    animate(x, -600, { duration: 0.3, ease: 'easeOut' })
+    setTimeout(() => onUnsave(item.deal_id), 300)
+  }
+
+  const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
+    if (info.offset.x < -80) unsave()
+    else animate(x, 0, { type: 'spring', damping: 25, stiffness: 200 })
+  }
+
   return (
-    <div className="bg-[#111118] rounded-2xl border border-white/[0.06]">
+    <motion.div
+      layout
+      transition={{ layout: { type: 'spring', duration: 1, bounce: 0.1 } }}
+      style={{ x, rotate }}
+      drag="x"
+      dragConstraints={{ right: 0 }}
+      onDragEnd={handleDragEnd}
+      className="relative bg-[#111118] rounded-2xl border border-white/[0.06] overflow-hidden cursor-grab active:cursor-grabbing select-none"
+    >
+      <motion.div
+        style={{ opacity: unsaveOpacity }}
+        className="absolute inset-0 bg-red-500/10 z-10 pointer-events-none flex items-center justify-end pr-4"
+      >
+        <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center">
+          <BookmarkX className="w-5 h-5 text-red-400" />
+        </div>
+      </motion.div>
+
       <div className="flex gap-3 p-3">
         <div className="relative w-[72px] h-[72px] flex-shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
           {deal.image_url ? (
@@ -63,9 +96,10 @@ function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string)
               href={deal.deal_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-auto flex items-center gap-0.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+              onClick={e => e.stopPropagation()}
+              className="ml-auto flex items-center gap-0.5 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors min-h-[44px] min-w-[44px] justify-end"
             >
-              View <ArrowUpRight className="w-2.5 h-2.5" />
+              View <ArrowUpRight className="w-3 h-3" />
             </a>
           </div>
         </div>
@@ -78,14 +112,14 @@ function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string)
           </span>
         )}
         <button
-          onClick={() => onUnsave(item.deal_id)}
+          onClick={unsave}
           aria-label="Remove from saved"
-          className="w-9 h-9 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-red-500/10 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
+          className="w-11 h-11 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-red-500/10 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
         >
           <BookmarkX className="w-4 h-4" />
         </button>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
@@ -147,15 +181,31 @@ export default function SavedFeed() {
     <PullToRefresh onRefresh={refresh}>
       <div className="max-w-xl mx-auto px-3 py-4">
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-28 px-6">
+          <div className="flex flex-col items-center justify-center py-28 px-6 gap-4">
             <p className="text-base font-semibold text-[#ededef]">No saved deals</p>
-            <p className="text-sm text-[#8a8f98] mt-1 text-center">Swipe right on a deal to save it.</p>
+            <p className="text-sm text-[#8a8f98] text-center">Swipe right on a deal to save it for later.</p>
+            {/* Animated swipe hint */}
+            <div className="flex items-center gap-2 mt-2">
+              <div className="w-10 h-10 rounded-full bg-[#111118] border border-white/[0.06] flex items-center justify-center">
+                <ShoppingBag className="w-4 h-4 text-white/30" />
+              </div>
+              <motion.div
+                animate={{ x: [0, 28, 0] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', repeatDelay: 0.8 }}
+                className="flex items-center gap-1 text-emerald-400/70"
+              >
+                <ArrowUpRight className="w-4 h-4 rotate-180" />
+                <span className="text-xs font-medium">swipe right</span>
+              </motion.div>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {items.map(item => (
-              <SavedCard key={item.deal_id} item={item} onUnsave={handleUnsave} />
-            ))}
+            <AnimatePresence>
+              {items.map(item => (
+                <SavedCard key={item.deal_id} item={item} onUnsave={handleUnsave} />
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>
