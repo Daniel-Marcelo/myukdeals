@@ -113,33 +113,37 @@ async function scrapeTab(tab: 'hot' | 'trending'): Promise<Deal[]> {
   return allDeals
 }
 
-export async function scrapeNow(): Promise<{ hot: number; trending: number }> {
-  const [hotResult, trendingResult] = await Promise.allSettled([scrapeTab('hot'), scrapeTab('trending')])
-  const hotDeals = hotResult.status === 'fulfilled' ? hotResult.value : []
-  const trendingDeals = trendingResult.status === 'fulfilled' ? trendingResult.value : []
-  if (hotResult.status === 'rejected') console.error('Hot scrape failed:', hotResult.reason)
-  if (trendingResult.status === 'rejected') console.error('Popular scrape failed:', trendingResult.reason)
+export async function scrapeTabNow(tab: 'hot' | 'trending'): Promise<number> {
+  const deals = await scrapeTab(tab)
 
-  const seen = new Set<string>()
-  const allDeals = [...hotDeals, ...trendingDeals].filter(d => {
-    if (seen.has(d.id)) return false
-    seen.add(d.id)
-    return true
-  })
+  if (deals.length === 0) throw new Error(`No deals scraped for tab: ${tab}`)
 
-  if (hotDeals.length > 0) await supabase.from('deals').delete().eq('tab', 'hot')
-  if (trendingDeals.length > 0) await supabase.from('deals').delete().eq('tab', 'trending')
+  const { error: deleteError } = await supabase.from('deals').delete().eq('tab', tab)
+  if (deleteError) throw new Error(`Delete failed for ${tab}: ${deleteError.message}`)
 
-  if (allDeals.length > 0) {
-    await supabase.from('deals').insert(allDeals)
-  }
+  const { error: insertError } = await supabase.from('deals').insert(deals)
+  if (insertError) throw new Error(`Insert failed for ${tab}: ${insertError.message}`)
 
-  await supabase
+  const { error: metaError } = await supabase
     .from('meta')
     .update({ value: new Date().toISOString() })
     .eq('key', 'last_scraped_at')
+  if (metaError) console.error('meta update failed:', metaError.message)
 
-  return { hot: hotDeals.length, trending: trendingDeals.length }
+  return deals.length
+}
+
+export async function scrapeNow(): Promise<{ hot: number; trending: number }> {
+  const [hotResult, trendingResult] = await Promise.allSettled([
+    scrapeTabNow('hot'),
+    scrapeTabNow('trending'),
+  ])
+  if (hotResult.status === 'rejected') console.error('Hot scrape failed:', hotResult.reason)
+  if (trendingResult.status === 'rejected') console.error('Trending scrape failed:', trendingResult.reason)
+  return {
+    hot: hotResult.status === 'fulfilled' ? hotResult.value : 0,
+    trending: trendingResult.status === 'fulfilled' ? trendingResult.value : 0,
+  }
 }
 
 export async function scrapeIfStale(): Promise<void> {
