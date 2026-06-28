@@ -94,6 +94,12 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
 
   return (
     <div className="max-w-xl mx-auto px-3 py-4">
+      {tab === 'trending' && (
+        <div className="mb-4 px-1">
+          <p className="text-sm font-semibold text-[#ededef]">Emerging deals</p>
+          <p className="text-xs text-[#8a8f98] mt-0.5">Sorted by the time at which they reached 100°</p>
+        </div>
+      )}
       <AnimatePresence>
         <div className="flex flex-col gap-3">
           {deals.map(deal => (
