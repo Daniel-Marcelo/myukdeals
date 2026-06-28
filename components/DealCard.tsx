@@ -1,6 +1,7 @@
 'use client'
 
 import { useMotionValue, useTransform, motion, animate } from 'framer-motion'
+import { useState } from 'react'
 import Image from 'next/image'
 import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ArrowUpRight, TrendingUp } from 'lucide-react'
 
@@ -40,15 +41,23 @@ export default function DealCard({
   const dismissOpacity = useTransform(x, [-80, -20], [1, 0])
   const saveOpacity = useTransform(x, [20, 80], [0, 1])
 
-  const flyOff = (direction: 'left' | 'right') => {
-    const target = direction === 'left' ? -600 : 600
-    animate(x, target, { duration: 0.3, ease: 'easeOut' })
-    setTimeout(() => (direction === 'left' ? onDismiss(deal.id) : onSave(deal)), 300)
+  const [justSaved, setJustSaved] = useState(false)
+
+  const dismiss = () => {
+    animate(x, -600, { duration: 0.3, ease: 'easeOut' })
+    setTimeout(() => onDismiss(deal.id), 300)
+  }
+
+  const save = () => {
+    animate(x, 0, { type: 'spring', damping: 20, stiffness: 300 })
+    setJustSaved(true)
+    setTimeout(() => setJustSaved(false), 1000)
+    onSave(deal)
   }
 
   const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
-    if (info.offset.x < -80) flyOff('left')
-    else if (info.offset.x > 80) flyOff('right')
+    if (info.offset.x < -80) dismiss()
+    else if (info.offset.x > 80) save()
     else animate(x, 0, { type: 'spring', damping: 25, stiffness: 200 })
   }
 
@@ -137,16 +146,20 @@ export default function DealCard({
       {/* Action buttons */}
       <div className="flex items-center justify-between px-3 pb-3">
         <button
-          onClick={() => flyOff('left')}
+          onClick={dismiss}
           aria-label="Dismiss deal"
           className="w-9 h-9 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-red-500/10 hover:text-red-400 transition-all cursor-pointer flex items-center justify-center"
         >
           <X className="w-4 h-4" />
         </button>
         <button
-          onClick={() => flyOff('right')}
+          onClick={save}
           aria-label="Save deal"
-          className="w-9 h-9 rounded-full bg-white/[0.04] text-[#8a8f98] hover:bg-indigo-500/10 hover:text-indigo-400 transition-all cursor-pointer flex items-center justify-center"
+          className={`w-9 h-9 rounded-full transition-all cursor-pointer flex items-center justify-center ${
+            justSaved
+              ? 'bg-emerald-500/15 text-emerald-400'
+              : 'bg-white/[0.04] text-[#8a8f98] hover:bg-indigo-500/10 hover:text-indigo-400'
+          }`}
         >
           <Bookmark className="w-4 h-4" />
         </button>

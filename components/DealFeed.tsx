@@ -51,7 +51,6 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   }
 
   const handleSave = async (deal: Deal) => {
-    setDeals(prev => prev.filter(d => d.id !== deal.id))
     await fetch('/api/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
