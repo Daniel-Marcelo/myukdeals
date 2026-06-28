@@ -1,8 +1,6 @@
 import * as cheerio from 'cheerio'
 import { supabase } from './supabase'
 
-const STALE_MINUTES = 30
-
 export type Deal = {
   id: string
   title: string
@@ -124,12 +122,6 @@ export async function scrapeTabNow(tab: 'hot' | 'trending'): Promise<number> {
   const { error: insertError } = await supabase.from('deals').insert(deals)
   if (insertError) throw new Error(`Insert failed for ${tab}: ${insertError.message}`)
 
-  const { error: metaError } = await supabase
-    .from('meta')
-    .update({ value: new Date().toISOString() })
-    .eq('key', 'last_scraped_at')
-  if (metaError) console.error('meta update failed:', metaError.message)
-
   return deals.length
 }
 
@@ -146,17 +138,3 @@ export async function scrapeNow(): Promise<{ hot: number; trending: number }> {
   }
 }
 
-export async function scrapeIfStale(): Promise<void> {
-  const { data: meta } = await supabase
-    .from('meta')
-    .select('value')
-    .eq('key', 'last_scraped_at')
-    .single()
-
-  const lastScraped = meta?.value ? new Date(meta.value) : new Date(0)
-  const minutesSince = (Date.now() - lastScraped.getTime()) / 1000 / 60
-
-  if (minutesSince < STALE_MINUTES) return
-
-  await scrapeNow()
-}

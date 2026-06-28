@@ -34,14 +34,12 @@ function SkeletonCard() {
 export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
-  const [lastScraped, setLastScraped] = useState<string | null>(null)
 
   const fetchDeals = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/deals?tab=${tab}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
-    setLastScraped(data.last_scraped_at ?? null)
     setLoading(false)
   }, [tab])
 
@@ -96,18 +94,6 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
 
   return (
     <div className="max-w-xl mx-auto px-3 py-4">
-      {lastScraped && (
-        <p className="text-[11px] text-[#8a8f98]/60 text-center mb-3 flex items-center justify-center gap-1.5">
-          Updated {formatAge(lastScraped)} ago
-          <span className="opacity-30">·</span>
-          <button
-            onClick={fetchDeals}
-            className="hover:text-[#8a8f98] transition-colors cursor-pointer"
-          >
-            refresh
-          </button>
-        </p>
-      )}
       <AnimatePresence>
         <div className="flex flex-col gap-3">
           {deals.map(deal => (
@@ -124,9 +110,3 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   )
 }
 
-function formatAge(iso: string) {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m`
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`
-}

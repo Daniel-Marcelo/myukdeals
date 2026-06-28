@@ -30,13 +30,7 @@ export async function GET(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const { data: meta } = await supabase
-    .from('meta')
-    .select('value')
-    .eq('key', 'last_scraped_at')
-    .single()
-
-  return NextResponse.json({ deals, last_scraped_at: meta?.value }, {
+  return NextResponse.json({ deals }, {
     headers: { 'Cache-Control': 'no-store' },
   })
 }
