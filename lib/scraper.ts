@@ -18,16 +18,25 @@ export type Deal = {
   trending_for: string | null
 }
 
+export type HotPeriod = 'today' | 'week' | 'month'
+
 const TAB_URLS: Record<'hot' | 'trending', string> = {
   hot: 'https://www.hotukdeals.com/hottest',
   trending: 'https://www.hotukdeals.com/hot',
 }
 
+const PERIOD_COOKIE: Record<HotPeriod, string> = {
+  today: '%7B%22homepage%22%3A%22hottest%22%2C%22threadTypeId-1%22%3A%22hot%22%2C%22hottest-widget-time%22%3A%22day%22%7D',
+  week:  '%7B%22homepage%22%3A%22hottest%22%2C%22threadTypeId-1%22%3A%22hot%22%2C%22hottest-widget-time%22%3A%22week%22%7D',
+  month: '%7B%22homepage%22%3A%22hottest%22%2C%22threadTypeId-1%22%3A%22hot%22%2C%22hottest-widget-time%22%3A%22month%22%7D',
+}
+
 const PAGES_TO_SCRAPE = 3
 
-async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: number): Promise<Deal[]> {
+async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: number, period: HotPeriod = 'today'): Promise<Deal[]> {
   const baseUrl = TAB_URLS[tab]
   const url = page === 1 ? baseUrl : `${baseUrl}?page=${page}`
+  const cookie = tab === 'hot' ? `navi=${PERIOD_COOKIE[period]}` : ''
 
   const res = await fetch(url, {
     headers: {
@@ -35,6 +44,7 @@ async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: nu
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
       'Accept-Language': 'en-GB,en;q=0.9',
       'Referer': 'https://www.hotukdeals.com/',
+      ...(cookie ? { 'Cookie': cookie } : {}),
     },
     next: { revalidate: 0 },
   })
@@ -106,18 +116,18 @@ async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: nu
   return deals
 }
 
-async function scrapeTab(tab: 'hot' | 'trending'): Promise<Deal[]> {
+async function scrapeTab(tab: 'hot' | 'trending', period: HotPeriod = 'today'): Promise<Deal[]> {
   const allDeals: Deal[] = []
   for (let page = 1; page <= PAGES_TO_SCRAPE; page++) {
-    const deals = await scrapePage(tab, page, allDeals.length)
+    const deals = await scrapePage(tab, page, allDeals.length, period)
     if (deals.length === 0) break
     allDeals.push(...deals)
   }
   return allDeals
 }
 
-export async function scrapeTabNow(tab: 'hot' | 'trending'): Promise<Deal[]> {
-  const deals = await scrapeTab(tab)
+export async function scrapeTabNow(tab: 'hot' | 'trending', period: HotPeriod = 'today'): Promise<Deal[]> {
+  const deals = await scrapeTab(tab, period)
 
   if (deals.length === 0) throw new Error(`No deals scraped for tab: ${tab}`)
 
