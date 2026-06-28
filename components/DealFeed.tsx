@@ -24,9 +24,10 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<'today' | 'week'>('today')
 
-  const fetchDeals = useCallback(async (p = period) => {
+  const fetchDeals = useCallback(async (p?: 'today' | 'week') => {
+    const activePeriod = p ?? period
     setLoading(true)
-    const res = await fetch(`/api/deals?tab=${tab}&period=${p}`, { cache: 'no-store' })
+    const res = await fetch(`/api/deals?tab=${tab}&period=${activePeriod}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
     setLoading(false)
@@ -111,7 +112,7 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
             <p className="text-base font-semibold text-[#ededef]">All caught up</p>
             <p className="text-sm text-[#8a8f98] mt-1 text-center">No new deals to review right now.</p>
             <button
-              onClick={fetchDeals}
+              onClick={() => fetchDeals()}
               className="mt-6 flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-sm font-medium transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
