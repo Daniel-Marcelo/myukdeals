@@ -2,7 +2,7 @@
 
 import { useMotionValue, useTransform, motion, animate } from 'framer-motion'
 import Image from 'next/image'
-import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ArrowUpRight } from 'lucide-react'
+import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ArrowUpRight, TrendingUp } from 'lucide-react'
 
 type Deal = {
   id: string
@@ -14,6 +14,7 @@ type Deal = {
   image_url: string | null
   deal_url: string
   posted_at: string | null
+  trending_for: string | null
 }
 
 export default function DealCard({
@@ -102,6 +103,12 @@ export default function DealCard({
               <MessageCircle className="w-2.5 h-2.5" />
               {deal.comment_count ?? 0}
             </span>
+            {deal.trending_for && (
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[11px] font-medium ring-1 ring-indigo-500/20">
+                <TrendingUp className="w-2.5 h-2.5" />
+                {deal.trending_for}
+              </span>
+            )}
             <a
               href={deal.deal_url}
               target="_blank"

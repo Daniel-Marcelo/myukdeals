@@ -16,6 +16,7 @@ type Deal = {
   deal_url: string
   tab: string
   posted_at: string | null
+  trending_for: string | null
 }
 
 function SkeletonCard() {
