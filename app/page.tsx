@@ -1,13 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { Flame, TrendingUp } from 'lucide-react'
+import { Flame, TrendingUp, LogOut } from 'lucide-react'
 import DealFeed from '@/components/DealFeed'
+import { createClient } from '@/lib/supabase-browser'
+import { useRouter } from 'next/navigation'
 
 type Tab = 'hot' | 'trending'
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>('hot')
+  const router = useRouter()
+
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth')
+    router.refresh()
+  }
 
   return (
     <main className="min-h-dvh bg-[#0a0a0f]">
@@ -35,6 +45,13 @@ export default function Home() {
             <TrendingUp className="w-3 h-3" /> Trending
           </button>
         </div>
+        <button
+          onClick={handleSignOut}
+          title="Sign out"
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] text-[#8a8f98] hover:bg-white/[0.1] hover:text-white transition-all cursor-pointer"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+        </button>
       </header>
       <DealFeed tab={tab} />
     </main>

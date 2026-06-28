@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase-server'
 import { supabase } from '@/lib/supabase'
 
 export async function GET(request: Request) {
+  const client = await createClient()
+  const { data: { user } } = await client.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { searchParams } = new URL(request.url)
   const tab = searchParams.get('tab') === 'trending' ? 'trending' : 'hot'
 
-  const { data: dismissed } = await supabase.from('dismissed').select('deal_id')
+  const { data: dismissed } = await client.from('dismissed').select('deal_id')
   const dismissedIds = dismissed?.map((d) => d.deal_id) ?? []
 
   let query = supabase
