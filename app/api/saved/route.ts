@@ -11,7 +11,6 @@ export async function GET() {
   const { data: saved, error } = await client
     .from('saved')
     .select('deal_id, deal_data')
-    .order('id', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
