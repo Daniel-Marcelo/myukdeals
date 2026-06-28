@@ -7,8 +7,8 @@ export async function GET(request: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
   try {
-    const count = await scrapeTabNow('hot')
-    return NextResponse.json({ tab: 'hot', count })
+    const deals = await scrapeTabNow('hot')
+    return NextResponse.json({ tab: 'hot', count: deals.length, deals })
   } catch (err) {
     console.error(err)
     return NextResponse.json({ error: String(err) }, { status: 500 })

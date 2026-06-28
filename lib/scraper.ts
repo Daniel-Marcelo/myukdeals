@@ -111,7 +111,7 @@ async function scrapeTab(tab: 'hot' | 'trending'): Promise<Deal[]> {
   return allDeals
 }
 
-export async function scrapeTabNow(tab: 'hot' | 'trending'): Promise<number> {
+export async function scrapeTabNow(tab: 'hot' | 'trending'): Promise<Deal[]> {
   const deals = await scrapeTab(tab)
 
   if (deals.length === 0) throw new Error(`No deals scraped for tab: ${tab}`)
@@ -122,7 +122,7 @@ export async function scrapeTabNow(tab: 'hot' | 'trending'): Promise<number> {
   const { error: insertError } = await supabase.from('deals').insert(deals)
   if (insertError) throw new Error(`Insert failed for ${tab}: ${insertError.message}`)
 
-  return deals.length
+  return deals
 }
 
 export async function scrapeNow(): Promise<{ hot: number; trending: number }> {
@@ -133,8 +133,8 @@ export async function scrapeNow(): Promise<{ hot: number; trending: number }> {
   if (hotResult.status === 'rejected') console.error('Hot scrape failed:', hotResult.reason)
   if (trendingResult.status === 'rejected') console.error('Trending scrape failed:', trendingResult.reason)
   return {
-    hot: hotResult.status === 'fulfilled' ? hotResult.value : 0,
-    trending: trendingResult.status === 'fulfilled' ? trendingResult.value : 0,
+    hot: hotResult.status === 'fulfilled' ? hotResult.value.length : 0,
+    trending: trendingResult.status === 'fulfilled' ? trendingResult.value.length : 0,
   }
 }
 
