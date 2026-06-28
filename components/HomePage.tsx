@@ -1,10 +1,11 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Flame, TrendingUp, Bookmark, MoreHorizontal, RotateCcw, LogOut } from 'lucide-react'
+import { Flame, TrendingUp, Bookmark, MoreHorizontal, RotateCcw, LogOut, Store } from 'lucide-react'
 import DealFeed from '@/components/DealFeed'
 import SavedFeed from '@/components/SavedFeed'
 import SwipeTutorial from '@/components/SwipeTutorial'
+import BlockedMerchantsModal from '@/components/BlockedMerchantsModal'
 import { createClient } from '@/lib/supabase-browser'
 import { useRouter, usePathname } from 'next/navigation'
 
@@ -14,6 +15,8 @@ export default function HomePage() {
   const router = useRouter()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [blockedModalOpen, setBlockedModalOpen] = useState(false)
+  const [feedKey, setFeedKey] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const activeTab: ActiveTab =
@@ -62,6 +65,14 @@ export default function HomePage() {
                 </button>
                 <div className="border-t border-white/[0.06]" />
                 <button
+                  onClick={() => { setMenuOpen(false); setBlockedModalOpen(true) }}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-[#ededef] hover:bg-white/[0.06] transition-colors cursor-pointer"
+                >
+                  <Store className="w-3.5 h-3.5 text-[#8a8f98]" />
+                  Blocked retailers
+                </button>
+                <div className="border-t border-white/[0.06]" />
+                <button
                   onClick={handleSignOut}
                   className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                 >
@@ -78,7 +89,7 @@ export default function HomePage() {
         {activeTab === 'saved' ? (
           <SavedFeed />
         ) : (
-          <DealFeed tab={activeTab} />
+          <DealFeed key={feedKey} tab={activeTab} />
         )}
       </div>
 
@@ -112,6 +123,12 @@ export default function HomePage() {
           <span className="text-[10px] font-medium">Saved</span>
         </button>
       </nav>
+      {blockedModalOpen && (
+        <BlockedMerchantsModal
+          onClose={() => setBlockedModalOpen(false)}
+          onChanged={() => setFeedKey(k => k + 1)}
+        />
+      )}
     </main>
   )
 }
