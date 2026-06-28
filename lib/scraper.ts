@@ -13,6 +13,7 @@ export type Deal = {
   deal_url: string
   merchant_url: string | null
   tab: 'hot' | 'trending'
+  period: HotPeriod
   order_index: number
   posted_at: string | null
   trending_for: string | null
@@ -33,7 +34,7 @@ const PERIOD_COOKIE: Record<HotPeriod, string> = {
 
 const PAGES_TO_SCRAPE = 3
 
-async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: number, period: HotPeriod = 'today'): Promise<Deal[]> {
+async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: number, period: HotPeriod): Promise<Deal[]> {
   const baseUrl = TAB_URLS[tab]
   const url = page === 1 ? baseUrl : `${baseUrl}?page=${page}`
   const cookie = tab === 'hot' ? `navi=${PERIOD_COOKIE[period]}` : ''
@@ -107,6 +108,7 @@ async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: nu
       deal_url,
       merchant_url,
       tab,
+      period,
       order_index: indexOffset + index,
       posted_at,
       trending_for,
@@ -131,8 +133,8 @@ export async function scrapeTabNow(tab: 'hot' | 'trending', period: HotPeriod = 
 
   if (deals.length === 0) throw new Error(`No deals scraped for tab: ${tab}`)
 
-  const { error: deleteError } = await supabase.from('deals').delete().eq('tab', tab)
-  if (deleteError) throw new Error(`Delete failed for ${tab}: ${deleteError.message}`)
+  const { error: deleteError } = await supabase.from('deals').delete().eq('tab', tab).eq('period', period)
+  if (deleteError) throw new Error(`Delete failed for ${tab}/${period}: ${deleteError.message}`)
 
   const { error: insertError } = await supabase.from('deals').insert(deals)
   if (insertError) throw new Error(`Insert failed for ${tab}: ${insertError.message}`)

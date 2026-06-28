@@ -11,6 +11,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const tab = searchParams.get('tab') === 'trending' ? 'trending' : 'hot'
+  const period = searchParams.get('period') === 'week' ? 'week' : 'today'
 
   const [{ data: dismissed }, { data: prefs }] = await Promise.all([
     client.from('dismissed').select('deal_id'),
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     .from('deals')
     .select('*')
     .eq('tab', tab)
+    .eq('period', tab === 'hot' ? period : 'today')
     .order(tab === 'trending' ? 'order_index' : 'temperature', { ascending: tab === 'trending' })
     .limit(150)
 

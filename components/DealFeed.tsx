@@ -22,20 +22,26 @@ function SkeletonCard() {
 export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<'today' | 'week'>('today')
 
-  const fetchDeals = useCallback(async () => {
+  const fetchDeals = useCallback(async (p = period) => {
     setLoading(true)
-    const res = await fetch(`/api/deals?tab=${tab}`, { cache: 'no-store' })
+    const res = await fetch(`/api/deals?tab=${tab}&period=${p}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
     setLoading(false)
-  }, [tab])
+  }, [tab, period])
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/deals?tab=${tab}`, { cache: 'no-store' })
+    const res = await fetch(`/api/deals?tab=${tab}&period=${period}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
-  }, [tab])
+  }, [tab, period])
+
+  const handlePeriodChange = (p: 'today' | 'week') => {
+    setPeriod(p)
+    fetchDeals(p)
+  }
 
   useEffect(() => {
     fetchDeals()
@@ -73,14 +79,30 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   return (
     <PullToRefresh onRefresh={refresh}>
       <div className="max-w-xl mx-auto px-3 py-4">
-        <div className="mb-4 px-1 flex items-baseline justify-between">
+        <div className="mb-4 px-1 flex items-center justify-between">
           {tab === 'trending' ? (
             <div>
               <p className="text-sm font-semibold text-[#ededef]">Emerging deals</p>
               <p className="text-xs text-[#8a8f98] mt-0.5">Sorted by the time at which they reached 100°</p>
             </div>
           ) : (
-            <p className="text-sm font-semibold text-[#ededef]">Hot deals</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-[#ededef]">Hot deals</p>
+              <div className="flex items-center bg-white/[0.06] rounded-lg p-0.5">
+                <button
+                  onClick={() => handlePeriodChange('today')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${period === 'today' ? 'bg-indigo-600 text-white' : 'text-[#8a8f98] hover:text-white'}`}
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => handlePeriodChange('week')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${period === 'week' ? 'bg-indigo-600 text-white' : 'text-[#8a8f98] hover:text-white'}`}
+                >
+                  Week
+                </button>
+              </div>
+            </div>
           )}
           <span className="text-xs text-[#8a8f98]/60">{deals.length} deal{deals.length !== 1 ? 's' : ''}</span>
         </div>
