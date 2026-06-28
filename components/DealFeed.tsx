@@ -23,19 +23,27 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
 
+  const triggerNotify = useCallback(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      fetch('/api/push/notify', { method: 'POST' }).catch(() => {})
+    }
+  }, [])
+
   const fetchDeals = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/deals?tab=${tab}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
     setLoading(false)
-  }, [tab])
+    triggerNotify()
+  }, [tab, triggerNotify])
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/deals?tab=${tab}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
-  }, [tab])
+    triggerNotify()
+  }, [tab, triggerNotify])
 
   useEffect(() => {
     fetchDeals()
@@ -100,18 +108,31 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
             </button>
           </div>
         ) : (
-          <AnimatePresence>
+          <>
             <div className="flex flex-col gap-3">
-              {deals.map(deal => (
-                <DealCard
-                  key={deal.id}
-                  deal={deal}
-                  onDismiss={handleDismiss}
-                  onSave={handleSave}
-                />
-              ))}
+              <AnimatePresence>
+                {deals.map(deal => (
+                  <DealCard
+                    key={deal.id}
+                    deal={deal}
+                    onDismiss={handleDismiss}
+                    onSave={handleSave}
+                  />
+                ))}
+              </AnimatePresence>
             </div>
-          </AnimatePresence>
+            <div className="flex justify-center pt-6 pb-2">
+              <button
+                onClick={async () => {
+                  await fetch('/api/reset-dismissed', { method: 'POST' })
+                  fetchDeals()
+                }}
+                className="text-xs text-[#8a8f98]/50 hover:text-[#8a8f98] transition-colors cursor-pointer"
+              >
+                Reset dismissed
+              </button>
+            </div>
+          </>
         )}
       </div>
     </PullToRefresh>

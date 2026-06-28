@@ -1,8 +1,11 @@
 'use client'
 
-import { Flame, TrendingUp, LogOut, Bookmark } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Flame, TrendingUp, Bookmark, MoreHorizontal, RotateCcw, LogOut } from 'lucide-react'
 import DealFeed from '@/components/DealFeed'
 import SavedFeed from '@/components/SavedFeed'
+import SwipeTutorial from '@/components/SwipeTutorial'
+import NotificationSetup from '@/components/NotificationSetup'
 import { createClient } from '@/lib/supabase-browser'
 import { useRouter, usePathname } from 'next/navigation'
 
@@ -11,6 +14,8 @@ type ActiveTab = 'hot' | 'trending' | 'saved'
 export default function HomePage() {
   const router = useRouter()
   const pathname = usePathname()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const activeTab: ActiveTab =
     pathname === '/trending' ? 'trending' :
@@ -24,50 +29,94 @@ export default function HomePage() {
     router.refresh()
   }
 
+  const handleResetDismissed = async () => {
+    setMenuOpen(false)
+    await fetch('/api/reset-dismissed', { method: 'POST' })
+    router.refresh()
+  }
+
   return (
     <main className="min-h-dvh bg-[#0a0a0f]">
+      <SwipeTutorial />
       <header className="sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3 flex items-center justify-between">
         <span className="text-sm font-semibold tracking-tight text-white">MyUKDeals</span>
-        <div className="flex gap-1 bg-white/[0.06] rounded-full p-1">
+
+        <div className="flex items-center gap-2">
+          <NotificationSetup />
+
+        {/* Overflow menu */}
+        <div className="relative" ref={menuRef}>
           <button
-            onClick={() => router.push('/')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-              activeTab === 'hot' ? 'bg-indigo-600 text-white' : 'text-[#8a8f98] hover:text-white'
-            }`}
+            onClick={() => setMenuOpen(o => !o)}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] text-[#8a8f98] hover:bg-white/[0.1] hover:text-white transition-all cursor-pointer"
           >
-            <Flame className="w-3 h-3" /> Hot
+            <MoreHorizontal className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={() => router.push('/trending')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-              activeTab === 'trending' ? 'bg-indigo-600 text-white' : 'text-[#8a8f98] hover:text-white'
-            }`}
-          >
-            <TrendingUp className="w-3 h-3" /> Trending
-          </button>
-          <button
-            onClick={() => router.push('/saved')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-              activeTab === 'saved' ? 'bg-indigo-600 text-white' : 'text-[#8a8f98] hover:text-white'
-            }`}
-          >
-            <Bookmark className="w-3 h-3" /> Saved
-          </button>
+
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-10 z-40 w-48 bg-[#16161e] border border-white/[0.08] rounded-xl shadow-xl overflow-hidden">
+                <button
+                  onClick={handleResetDismissed}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-[#ededef] hover:bg-white/[0.06] transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-[#8a8f98]" />
+                  Reset dismissed
+                </button>
+                <div className="border-t border-white/[0.06]" />
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Sign out
+                </button>
+              </div>
+            </>
+          )}
         </div>
-        <button
-          onClick={handleSignOut}
-          title="Sign out"
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] text-[#8a8f98] hover:bg-white/[0.1] hover:text-white transition-all cursor-pointer"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-        </button>
+        </div>
       </header>
 
-      {activeTab === 'saved' ? (
-        <SavedFeed />
-      ) : (
-        <DealFeed tab={activeTab} />
-      )}
+      <div className="pb-20">
+        {activeTab === 'saved' ? (
+          <SavedFeed />
+        ) : (
+          <DealFeed tab={activeTab} />
+        )}
+      </div>
+
+      {/* Bottom tab bar */}
+      <nav className="fixed bottom-0 inset-x-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-white/[0.06] flex items-center justify-around px-6 pb-safe pt-2">
+        <button
+          onClick={() => router.push('/')}
+          className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+            activeTab === 'hot' ? 'text-indigo-400' : 'text-[#8a8f98] hover:text-white'
+          }`}
+        >
+          <Flame className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Hot</span>
+        </button>
+        <button
+          onClick={() => router.push('/trending')}
+          className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+            activeTab === 'trending' ? 'text-indigo-400' : 'text-[#8a8f98] hover:text-white'
+          }`}
+        >
+          <TrendingUp className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Trending</span>
+        </button>
+        <button
+          onClick={() => router.push('/saved')}
+          className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+            activeTab === 'saved' ? 'text-indigo-400' : 'text-[#8a8f98] hover:text-white'
+          }`}
+        >
+          <Bookmark className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Saved</span>
+        </button>
+      </nav>
     </main>
   )
 }
