@@ -9,17 +9,8 @@ import PullToRefresh from './PullToRefresh'
 type SavedItem = {
   deal_id: string
   deal_data: Deal | null
-  created_at: string
 }
 
-function formatAge(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
 
 function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string) => void }) {
   const deal = item.deal_data
@@ -69,8 +60,7 @@ function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string)
           </div>
         </div>
       </div>
-      <div className="flex items-center justify-between px-3 pb-3">
-        <span className="text-[11px] text-[#8a8f98]/50">Saved {formatAge(item.created_at)}</span>
+      <div className="flex items-center justify-end px-3 pb-3">
         <button
           onClick={() => onUnsave(item.deal_id)}
           aria-label="Remove from saved"
