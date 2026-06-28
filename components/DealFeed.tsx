@@ -90,6 +90,15 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
             >
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
+            <button
+              onClick={async () => {
+                await fetch('/api/reset-dismissed', { method: 'POST' })
+                fetchDeals()
+              }}
+              className="mt-3 text-xs text-[#8a8f98]/60 hover:text-[#8a8f98] transition-colors cursor-pointer"
+            >
+              Reset dismissed
+            </button>
           </div>
         ) : (
           <AnimatePresence>
