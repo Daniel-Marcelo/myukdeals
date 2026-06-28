@@ -38,7 +38,7 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
 
   const fetchDeals = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`/api/deals?tab=${tab}`)
+    const res = await fetch(`/api/deals?tab=${tab}`, { cache: 'no-store' })
     const data = await res.json()
     setDeals(data.deals ?? [])
     setLastScraped(data.last_scraped_at ?? null)

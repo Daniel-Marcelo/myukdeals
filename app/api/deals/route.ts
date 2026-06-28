@@ -34,5 +34,7 @@ export async function GET(request: Request) {
     .eq('key', 'last_scraped_at')
     .single()
 
-  return NextResponse.json({ deals, last_scraped_at: meta?.value })
+  return NextResponse.json({ deals, last_scraped_at: meta?.value }, {
+    headers: { 'Cache-Control': 'no-store' },
+  })
 }
