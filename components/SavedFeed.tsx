@@ -56,12 +56,12 @@ function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string)
       </motion.div>
 
       <div className="flex gap-3 p-3">
-        <div className="relative w-[72px] h-[72px] flex-shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
+        <div className="relative w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
           {deal.image_url ? (
             <Image src={deal.image_url} alt={deal.title} fill className="object-cover" unoptimized />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <ShoppingBag className="w-7 h-7 text-white/20" />
+              <ShoppingBag className="w-8 h-8 text-white/20" />
             </div>
           )}
         </div>
@@ -120,7 +120,7 @@ function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string)
 function SkeletonCard() {
   return (
     <div className="bg-[#111118] rounded-2xl border border-white/[0.06] p-3 flex gap-3">
-      <div className="w-[72px] h-[72px] rounded-xl shimmer flex-shrink-0" />
+      <div className="w-24 h-24 rounded-xl shimmer flex-shrink-0" />
       <div className="flex-1 flex flex-col gap-2 py-0.5">
         <div className="h-3.5 rounded-lg shimmer w-full" />
         <div className="h-3.5 rounded-lg shimmer w-4/5" />

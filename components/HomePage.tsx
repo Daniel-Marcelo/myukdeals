@@ -34,7 +34,9 @@ export default function HomePage() {
   const handleResetDismissed = async () => {
     setMenuOpen(false)
     await fetch('/api/reset-dismissed', { method: 'POST' })
-    router.refresh()
+    // Remount DealFeed so its session-dismissed set is cleared and it refetches;
+    // router.refresh() alone would leave that client-side set hiding the deals.
+    setFeedKey(k => k + 1)
   }
 
   return (

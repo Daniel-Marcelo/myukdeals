@@ -26,15 +26,20 @@ begin
   -- Explicit column list + coalesce(scraped_at, now()) is deliberate: the scraper's
   -- JSON has no scraped_at, and `insert ... select *` would write an explicit NULL
   -- that BYPASSES the column default, breaking freshness/age display.
+  -- distinct on (r.id): a deal can appear on more than one scraped page of the
+  -- same feed; keep the highest-ranked (lowest order_index) occurrence so the
+  -- composite PK (id, tab, period) can't be violated within a single insert.
   insert into public.deals
     (id, title, description, price, merchant, temperature, comment_count,
      image_url, deal_url, merchant_url, tab, period, order_index, posted_at,
      trending_for, scraped_at)
-  select r.id, r.title, r.description, r.price, r.merchant, r.temperature,
+  select distinct on (r.id)
+         r.id, r.title, r.description, r.price, r.merchant, r.temperature,
          r.comment_count, r.image_url, r.deal_url, r.merchant_url, r.tab,
          r.period, r.order_index, r.posted_at, r.trending_for,
          coalesce(r.scraped_at, now())
-  from jsonb_populate_recordset(null::public.deals, p_deals) r;
+  from jsonb_populate_recordset(null::public.deals, p_deals) r
+  order by r.id, r.order_index;
 
   get diagnostics n = row_count;
   return n;

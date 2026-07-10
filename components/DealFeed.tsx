@@ -14,7 +14,7 @@ type DealsResponse = { deals: Deal[]; last_scraped_at: string | null; refreshing
 function SkeletonCard() {
   return (
     <div className="bg-[#111118] rounded-2xl border border-white/[0.06] p-3 flex gap-3">
-      <div className="w-[72px] h-[72px] rounded-xl shimmer flex-shrink-0" />
+      <div className="w-24 h-24 rounded-xl shimmer flex-shrink-0" />
       <div className="flex-1 flex flex-col gap-2 py-0.5">
         <div className="h-3.5 rounded-lg shimmer w-full" />
         <div className="h-3.5 rounded-lg shimmer w-4/5" />
@@ -33,9 +33,14 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   const [lastScrapedAt, setLastScrapedAt] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const refetchedKeys = useRef<Set<string>>(new Set())
+  // Deals dismissed this session. The server also filters dismissed deals, but a
+  // period/tab switch can refetch before the dismiss row commits — this set keeps
+  // a just-dismissed deal from flashing back on the other feed. Keyed on deal_id,
+  // which is shared across feeds, so it hides the deal everywhere.
+  const dismissedIds = useRef<Set<string>>(new Set())
 
   const applyResponse = (data: DealsResponse) => {
-    setDeals(data.deals ?? [])
+    setDeals((data.deals ?? []).filter(d => !dismissedIds.current.has(String(d.id))))
     setLastScrapedAt(data.last_scraped_at ?? null)
     setRefreshing(Boolean(data.refreshing))
   }
@@ -90,6 +95,7 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
 
   const handleDismiss = async (id: string) => {
     const prev = deals
+    dismissedIds.current.add(String(id))
     setDeals(cur => cur.filter(d => d.id !== id)) // optimistic
     try {
       await fetchJson('/api/dismiss', {
@@ -99,6 +105,7 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
       })
     } catch (err) {
       if (err instanceof AuthError) { router.push('/auth'); return }
+      dismissedIds.current.delete(String(id))
       setDeals(prev) // roll back — the deal is still live
       setError('Could not dismiss — try again')
     }
@@ -205,6 +212,7 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
               <button
                 onClick={async () => {
                   await fetch('/api/reset-dismissed', { method: 'POST' })
+                  dismissedIds.current.clear()
                   fetchDeals()
                 }}
                 className="mt-3 text-xs text-[#8a8f98]/60 hover:text-[#8a8f98] transition-colors cursor-pointer"

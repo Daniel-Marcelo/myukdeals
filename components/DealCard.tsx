@@ -92,12 +92,12 @@ export default function DealCard({
 
       {/* Main content */}
       <div className="flex gap-3 p-3">
-        <div className="relative w-[72px] h-[72px] flex-shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
+        <div className="relative w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-white/[0.04]">
           {deal.image_url ? (
             <Image src={deal.image_url} alt={deal.title} fill className="object-cover" unoptimized />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <ShoppingBag className="w-7 h-7 text-white/20" />
+              <ShoppingBag className="w-8 h-8 text-white/20" />
             </div>
           )}
         </div>
