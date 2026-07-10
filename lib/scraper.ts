@@ -1,25 +1,8 @@
-import * as cheerio from 'cheerio'
-import { supabase } from './supabase'
+import { supabaseAdmin } from './supabase-admin'
+import { parseThreadsFromHtml, type Deal, type HotPeriod } from './parse-deals'
 
-export type Deal = {
-  id: string
-  title: string
-  description: string | null
-  price: string | null
-  merchant: string | null
-  temperature: number
-  comment_count: number
-  image_url: string | null
-  deal_url: string
-  merchant_url: string | null
-  tab: 'hot' | 'trending'
-  period: HotPeriod
-  order_index: number
-  posted_at: string | null
-  trending_for: string | null
-}
-
-export type HotPeriod = 'today' | 'week' | 'month'
+// Re-export so existing importers keep resolving these from '@/lib/scraper'.
+export type { Deal, HotPeriod }
 
 const TAB_URLS: Record<'hot' | 'trending', string> = {
   hot: 'https://www.hotukdeals.com/hottest',
@@ -33,6 +16,7 @@ const PERIOD_COOKIE: Record<HotPeriod, string> = {
 }
 
 const PAGES_TO_SCRAPE = 3
+const STALE_MS = 30 * 60 * 1000
 
 async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: number, period: HotPeriod): Promise<Deal[]> {
   const baseUrl = TAB_URLS[tab]
@@ -53,69 +37,7 @@ async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: nu
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
 
   const html = await res.text()
-  const $ = cheerio.load(html)
-  const deals: Deal[] = []
-
-  $('article[id^="thread_"]').each((index, el) => {
-    const $el = $(el)
-    const id = $el.attr('id')?.replace('thread_', '')
-    if (!id) return
-
-    // Data is embedded as JSON in the data-vue3 attribute
-    const vue3Raw = $el.find('[data-vue3]').first().attr('data-vue3')
-    if (!vue3Raw) return
-
-    let thread: Record<string, any>
-    try {
-      const parsed = JSON.parse(vue3Raw)
-      thread = parsed?.props?.thread ?? {}
-    } catch {
-      return
-    }
-
-    const title = thread.title ?? null
-    if (!title) return
-
-    const temperature = Math.round(thread.temperature ?? 0)
-    const merchant = thread.merchant?.merchantName ?? null
-    const posted_at = thread.publishedAt
-      ? new Date(thread.publishedAt * 1000).toISOString()
-      : null
-    const deal_url = thread.shareableLink ?? `https://www.hotukdeals.com/deals/${id}`
-    const merchant_url = thread.merchant?.merchantUrlName
-      ? `https://${thread.merchant.merchantUrlName}`
-      : null
-
-    const price = thread.price != null ? `£${thread.price}` : null
-    const image_url = thread.mainImage
-      ? `https://images.hotukdeals.com/${thread.mainImage.path}/${thread.mainImage.name}/re/202x202/qt/70/${thread.mainImage.name}.jpg`
-      : null
-    const description = thread.description ?? null
-    const comment_count = thread.commentCount ?? 0
-    const trending_for = tab === 'trending'
-      ? ($el.find('.chip--type-default .size--all-s').text().trim() || null)
-      : null
-
-    deals.push({
-      id,
-      title,
-      description,
-      price,
-      merchant,
-      temperature,
-      comment_count,
-      image_url,
-      deal_url,
-      merchant_url,
-      tab,
-      period,
-      order_index: indexOffset + index,
-      posted_at,
-      trending_for,
-    })
-  })
-
-  return deals
+  return parseThreadsFromHtml(html, tab, period, indexOffset)
 }
 
 async function scrapeTab(tab: 'hot' | 'trending', period: HotPeriod = 'today'): Promise<Deal[]> {
@@ -133,13 +55,74 @@ export async function scrapeTabNow(tab: 'hot' | 'trending', period: HotPeriod = 
 
   if (deals.length === 0) throw new Error(`No deals scraped for tab: ${tab}`)
 
-  const { error: deleteError } = await supabase.from('deals').delete().eq('tab', tab).eq('period', period)
-  if (deleteError) throw new Error(`Delete failed for ${tab}/${period}: ${deleteError.message}`)
+  // Soft sanity check: warn (do NOT block) when a scrape looks degraded, so a
+  // partial HUKD markup change surfaces in logs instead of silently shipping
+  // half-empty cards. Thresholds are deliberately loose.
+  const priced = deals.filter((d) => d.price).length
+  const withMerchant = deals.filter((d) => d.merchant).length
+  if (deals.length < 15 || priced / deals.length < 0.3 || withMerchant / deals.length < 0.3) {
+    console.warn(
+      `[scrape] degraded result for ${tab}/${period}: ${deals.length} deals, ` +
+      `${priced} priced, ${withMerchant} with merchant — HUKD markup may have changed`
+    )
+  }
 
-  const { error: insertError } = await supabase.from('deals').insert(deals)
-  if (insertError) throw new Error(`Insert failed for ${tab}: ${insertError.message}`)
+  // Atomic replace: a single Postgres transaction deletes the old tab/period rows
+  // and inserts the new ones. If the insert fails, the delete rolls back too, so
+  // the feed is never left empty. See supabase/migrations/replace_deals_fn.sql.
+  const { error } = await supabaseAdmin.rpc('replace_deals', {
+    p_tab: tab,
+    p_period: period,
+    p_deals: deals,
+  })
+  if (error) throw new Error(`replace_deals failed for ${tab}/${period}: ${error.message}`)
 
+  await recordScrape(tab, period)
   return deals
+}
+
+async function recordScrape(tab: 'hot' | 'trending', period: HotPeriod): Promise<void> {
+  await supabaseAdmin.from('meta').upsert(
+    { key: `last_scraped:${tab}:${period}`, value: new Date().toISOString() },
+    { onConflict: 'key' }
+  )
+}
+
+/** Latest successful scrape time (ISO) for a tab/period, or null if never scraped. */
+export async function getLastScraped(tab: 'hot' | 'trending', period: HotPeriod): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from('meta')
+    .select('value')
+    .eq('key', `last_scraped:${tab}:${period}`)
+    .maybeSingle()
+  return data?.value ?? null
+}
+
+/**
+ * Self-heal: if the tab/period hasn't been scraped in STALE_MS, scrape it now.
+ * Returns true if a scrape ran. Safe to call from multiple concurrent requests —
+ * it claims the freshness slot before scraping so they don't pile up.
+ */
+export async function scrapeIfStale(tab: 'hot' | 'trending', period: HotPeriod): Promise<boolean> {
+  const key = `last_scraped:${tab}:${period}`
+  const { data } = await supabaseAdmin.from('meta').select('value').eq('key', key).maybeSingle()
+  const last = data?.value ? Date.parse(data.value) : 0
+  // NaN (corrupted value) compares false here, correctly treated as stale.
+  if (Date.now() - last < STALE_MS) return false
+
+  // Claim the slot BEFORE scraping so a concurrent request sees "fresh" and skips.
+  await supabaseAdmin.from('meta').upsert({ key, value: new Date().toISOString() }, { onConflict: 'key' })
+  try {
+    await scrapeTabNow(tab, period)
+    return true
+  } catch (err) {
+    console.error(`Self-heal scrape failed for ${tab}/${period}:`, err)
+    // Restore a stale timestamp so the next request retries instead of waiting 30 min.
+    // Guard against a non-finite `last` (corrupted value) — new Date(NaN).toISOString() throws.
+    const restore = Number.isFinite(last) && last > 0 ? new Date(last).toISOString() : new Date(0).toISOString()
+    await supabaseAdmin.from('meta').upsert({ key, value: restore }, { onConflict: 'key' })
+    return false
+  }
 }
 
 export async function scrapeNow(): Promise<{ hot: number; trending: number }> {
@@ -154,4 +137,3 @@ export async function scrapeNow(): Promise<{ hot: number; trending: number }> {
     trending: trendingResult.status === 'fulfilled' ? trendingResult.value.length : 0,
   }
 }
-

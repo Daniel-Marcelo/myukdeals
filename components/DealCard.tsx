@@ -4,6 +4,7 @@ import { useMotionValue, useTransform, motion, animate } from 'framer-motion'
 import { useState } from 'react'
 import Image from 'next/image'
 import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ArrowUpRight, TrendingUp } from 'lucide-react'
+import { formatAge } from '@/lib/format'
 
 export type Deal = {
   id: string
@@ -18,15 +19,6 @@ export type Deal = {
   trending_for: string | null
 }
 
-function formatAge(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
-
 export default function DealCard({
   deal,
   onDismiss,
@@ -34,7 +26,7 @@ export default function DealCard({
 }: {
   deal: Deal
   onDismiss: (id: string) => void
-  onSave: (deal: Deal) => void
+  onSave: (deal: Deal) => Promise<boolean>
 }) {
   const x = useMotionValue(0)
   const rotate = useTransform(x, [-150, 150], [-4, 4])
@@ -54,12 +46,15 @@ export default function DealCard({
     setTimeout(() => onDismiss(deal.id), 300)
   }
 
-  const save = () => {
+  const save = async () => {
     vibrate([10, 50, 10])
     animate(x, 0, { type: 'spring', damping: 20, stiffness: 300 })
-    setJustSaved(true)
-    setTimeout(() => setJustSaved(false), 1000)
-    onSave(deal)
+    const ok = await onSave(deal)
+    // Only show the green "saved" confirmation if the save actually persisted.
+    if (ok) {
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 1000)
+    }
   }
 
   const handleDragEnd = (_: any, info: { offset: { x: number } }) => {

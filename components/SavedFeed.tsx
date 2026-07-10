@@ -2,19 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
-import { Flame, MessageCircle, BookmarkX, ShoppingBag, ArrowUpRight, Clock } from 'lucide-react'
+import { Flame, MessageCircle, BookmarkX, ShoppingBag, ArrowUpRight, Clock, AlertCircle, RefreshCw } from 'lucide-react'
 import { useMotionValue, useTransform, motion, animate, AnimatePresence } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { type Deal } from './DealCard'
 import PullToRefresh from './PullToRefresh'
-
-function formatAge(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
+import { fetchJson, AuthError } from '@/lib/api'
+import { formatAge } from '@/lib/format'
 
 type SavedItem = {
   deal_id: string
@@ -137,34 +131,54 @@ function SkeletonCard() {
 }
 
 export default function SavedFeed() {
+  const router = useRouter()
   const [items, setItems] = useState<SavedItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchSaved = useCallback(async () => {
     setLoading(true)
-    const res = await fetch('/api/saved', { cache: 'no-store' })
-    const data = await res.json()
-    setItems(data.saved ?? [])
-    setLoading(false)
-  }, [])
+    setError(null)
+    try {
+      const data = await fetchJson<{ saved: SavedItem[] }>('/api/saved')
+      setItems(data.saved ?? [])
+    } catch (err) {
+      if (err instanceof AuthError) { router.push('/auth'); return }
+      setError(err instanceof Error ? err.message : 'Could not load saved deals')
+    } finally {
+      setLoading(false)
+    }
+  }, [router])
 
   const refresh = useCallback(async () => {
-    const res = await fetch('/api/saved', { cache: 'no-store' })
-    const data = await res.json()
-    setItems(data.saved ?? [])
-  }, [])
+    try {
+      const data = await fetchJson<{ saved: SavedItem[] }>('/api/saved')
+      setItems(data.saved ?? [])
+      setError(null)
+    } catch (err) {
+      if (err instanceof AuthError) { router.push('/auth'); return }
+      setError(err instanceof Error ? err.message : 'Could not refresh')
+    }
+  }, [router])
 
   useEffect(() => {
     fetchSaved()
   }, [fetchSaved])
 
   const handleUnsave = async (deal_id: string) => {
-    setItems(prev => prev.filter(i => i.deal_id !== deal_id))
-    await fetch('/api/unsave', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deal_id }),
-    })
+    const prev = items
+    setItems(cur => cur.filter(i => i.deal_id !== deal_id)) // optimistic
+    try {
+      await fetchJson('/api/unsave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deal_id }),
+      })
+    } catch (err) {
+      if (err instanceof AuthError) { router.push('/auth'); return }
+      setItems(prev) // roll back
+      setError('Could not remove — try again')
+    }
   }
 
   if (loading) {
@@ -180,7 +194,19 @@ export default function SavedFeed() {
   return (
     <PullToRefresh onRefresh={refresh}>
       <div className="max-w-xl mx-auto px-3 py-4">
-        {items.length === 0 ? (
+        {items.length === 0 && error ? (
+          <div className="flex flex-col items-center justify-center py-28 px-6">
+            <AlertCircle className="w-8 h-8 text-red-400/80" />
+            <p className="text-base font-semibold text-[#ededef] mt-3">Couldn&apos;t load saved</p>
+            <p className="text-sm text-[#8a8f98] mt-1 text-center">{error}</p>
+            <button
+              onClick={() => fetchSaved()}
+              className="mt-6 flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-sm font-medium transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Retry
+            </button>
+          </div>
+        ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 px-6 gap-4">
             <p className="text-base font-semibold text-[#ededef]">No saved deals</p>
             <p className="text-sm text-[#8a8f98] text-center">Swipe right on a deal to save it for later.</p>

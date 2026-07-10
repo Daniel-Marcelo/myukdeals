@@ -35,8 +35,12 @@ export default function PullToRefresh({
     if (pullY >= THRESHOLD) {
       setPullY(0)
       setRefreshing(true)
-      await onRefresh()
-      setRefreshing(false)
+      try {
+        await onRefresh()
+      } finally {
+        // Always reset — otherwise a rejected onRefresh leaves the spinner stuck.
+        setRefreshing(false)
+      }
     } else {
       setPullY(0)
     }

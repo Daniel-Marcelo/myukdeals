@@ -9,7 +9,11 @@ export async function POST(request: Request) {
   const { deal_id } = await request.json()
   if (!deal_id) return NextResponse.json({ error: 'deal_id required' }, { status: 400 })
 
-  const { error } = await client.from('dismissed').insert({ deal_id, user_id: user.id })
+  // Upsert with DO NOTHING so re-dismissing a resurfaced deal is a no-op instead
+  // of a duplicate row or a unique-violation 500.
+  const { error } = await client
+    .from('dismissed')
+    .upsert({ deal_id, user_id: user.id }, { onConflict: 'user_id,deal_id', ignoreDuplicates: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })
