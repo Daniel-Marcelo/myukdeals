@@ -42,7 +42,7 @@ export default function HomePage() {
   return (
     <main className="min-h-dvh bg-[#0a0a0f]">
       <SwipeTutorial />
-      <header className="sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/[0.06] px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3 flex items-center justify-between">
         <span className="text-sm font-semibold tracking-tight text-white">MyUKDeals</span>
 
         {/* Overflow menu */}
