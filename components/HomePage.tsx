@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Flame, TrendingUp, Bookmark, MoreHorizontal, RotateCcw, LogOut, Store } from 'lucide-react'
 import DealFeed from '@/components/DealFeed'
 import SavedFeed from '@/components/SavedFeed'
@@ -18,6 +18,31 @@ export default function HomePage() {
   const [blockedModalOpen, setBlockedModalOpen] = useState(false)
   const [feedKey, setFeedKey] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // On iOS standalone launch the layout viewport starts short and grows once the
+  // app is fully presented, so a `fixed bottom-0` bar paints high and then snaps
+  // down. Keep it hidden until innerHeight stops changing.
+  const [navReady, setNavReady] = useState(false)
+  useEffect(() => {
+    let lastHeight = window.innerHeight
+    let stableTicks = 0
+    const interval = setInterval(() => {
+      if (window.innerHeight === lastHeight) {
+        if (++stableTicks >= 2) finish()
+      } else {
+        lastHeight = window.innerHeight
+        stableTicks = 0
+      }
+    }, 60)
+    // Don't leave the bar hidden if the viewport never settles.
+    const fallback = setTimeout(finish, 800)
+    function finish() {
+      clearInterval(interval)
+      clearTimeout(fallback)
+      setNavReady(true)
+    }
+    return () => { clearInterval(interval); clearTimeout(fallback) }
+  }, [])
 
   const activeTab: ActiveTab =
     pathname === '/trending' ? 'trending' :
@@ -96,7 +121,12 @@ export default function HomePage() {
       </div>
 
       {/* Bottom tab bar */}
-      <nav className="fixed bottom-0 inset-x-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-white/[0.06] flex items-center justify-around px-6 pt-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
+      <nav
+        className={`fixed bottom-0 inset-x-0 z-20 bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-white/[0.06] flex items-center justify-around px-6 pt-2 transition-opacity duration-150 ${
+          navReady ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}
+      >
         <button
           onClick={() => router.push('/')}
           className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
