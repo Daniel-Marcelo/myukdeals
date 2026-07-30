@@ -2,45 +2,75 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { X, Plus, Store } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { fetchJson, AuthError } from '@/lib/api'
 
 export default function BlockedMerchantsModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const router = useRouter()
   const [blocked, setBlocked] = useState<string[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch('/api/preferences')
-      .then(r => r.json())
-      .then(d => { setBlocked(d.blocked_merchants ?? []); setLoading(false) })
-  }, [])
+    let cancelled = false
+    fetchJson<{ blocked_merchants: string[] }>('/api/preferences')
+      .then(d => {
+        if (cancelled) return
+        setBlocked(d.blocked_merchants ?? [])
+        setLoading(false)
+      })
+      .catch(err => {
+        if (cancelled) return
+        if (err instanceof AuthError) { router.push('/auth'); return }
+        // Without this the list renders as "No retailers blocked yet" for a user
+        // who has blocked ten — indistinguishable from real data.
+        setError('Could not load your blocked retailers')
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [router])
 
-  const save = async (updated: string[]) => {
+  const save = async (updated: string[], previous: string[]) => {
     setSaving(true)
-    await fetch('/api/preferences', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ blocked_merchants: updated }),
-    })
-    setSaving(false)
-    onChanged()
+    try {
+      await fetchJson('/api/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocked_merchants: updated }),
+      })
+      setError(null)
+      onChanged()
+    } catch (err) {
+      if (err instanceof AuthError) { router.push('/auth'); return }
+      setBlocked(previous) // undo the optimistic update
+      setError('Could not save — try again')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const add = () => {
     const name = input.trim()
-    if (!name || blocked.includes(name)) { setInput(''); return }
+    // Case-insensitive: the server stores display casing, so a raw includes()
+    // check would let "Amazon" through when "amazon" is already stored.
+    const key = name.toLowerCase()
+    if (!name || blocked.some(m => m.toLowerCase() === key)) { setInput(''); return }
+    const previous = blocked
     const updated = [...blocked, name]
     setBlocked(updated)
     setInput('')
-    save(updated)
+    save(updated, previous)
     inputRef.current?.focus()
   }
 
   const remove = (merchant: string) => {
+    const previous = blocked
     const updated = blocked.filter(m => m !== merchant)
     setBlocked(updated)
-    save(updated)
+    save(updated, previous)
   }
 
   return (
@@ -61,7 +91,7 @@ export default function BlockedMerchantsModal({ onClose, onChanged }: { onClose:
         </div>
 
         <div className="px-4 pt-3 pb-2">
-          <p className="text-xs text-[#8a8f98] mb-3">Deals from these retailers won't appear in your feed.</p>
+          <p className="text-xs text-[#8a8f98] mb-3">Deals from these retailers won&apos;t appear in your feed.</p>
           <div className="flex gap-2">
             <input
               ref={inputRef}
@@ -79,9 +109,13 @@ export default function BlockedMerchantsModal({ onClose, onChanged }: { onClose:
               <Plus className="w-4 h-4" />
             </button>
           </div>
+          <p className="text-[11px] text-[#8a8f98]/60 mt-2">
+            Matches the retailer and its sub-brands — “Amazon” also blocks “Amazon Warehouse”.
+          </p>
         </div>
 
         <div className="px-4 pb-4 min-h-[48px] max-h-52 overflow-y-auto">
+          {error && <p className="text-xs text-red-400 pt-2">{error}</p>}
           {loading ? (
             <div className="flex gap-2 pt-2">
               {[80, 60, 72].map(w => (

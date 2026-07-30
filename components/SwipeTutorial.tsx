@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import { X, Bookmark, ShoppingBag, Flame } from 'lucide-react'
 
@@ -39,7 +39,7 @@ function DemoCard({ x }: { x: ReturnType<typeof useMotionValue<number>> }) {
         </div>
         <div className="flex-1 min-w-0 flex flex-col py-0.5 gap-1.5">
           <p className="text-sm font-medium text-[#ededef] leading-snug tracking-tight">
-            Samsung 65" QLED 4K TV
+            Samsung 65&quot; QLED 4K TV
           </p>
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-bold text-white">£499</span>
@@ -99,15 +99,19 @@ const SEQUENCE = [
   { to: 0, label: 'reset' },
 ] as const
 
-export default function SwipeTutorial() {
-  const [visible, setVisible] = useState(false)
-  const x = useMotionValue(0)
+// localStorage never changes underneath us within a session — the only writer is
+// dismiss() below, which also flips React state — so the subscribe callback is a
+// no-op. The server snapshot returns `true` ("already seen") so the overlay never
+// flashes on screen during hydration for users who dismissed it long ago.
+const subscribeToSeen = () => () => {}
+const getSeenSnapshot = () => localStorage.getItem(STORAGE_KEY) !== null
+const getSeenServerSnapshot = () => true
 
-  useEffect(() => {
-    if (!localStorage.getItem(STORAGE_KEY)) {
-      setVisible(true)
-    }
-  }, [])
+export default function SwipeTutorial() {
+  const seen = useSyncExternalStore(subscribeToSeen, getSeenSnapshot, getSeenServerSnapshot)
+  const [dismissed, setDismissed] = useState(false)
+  const visible = !seen && !dismissed
+  const x = useMotionValue(0)
 
   useEffect(() => {
     if (!visible) return
@@ -133,7 +137,7 @@ export default function SwipeTutorial() {
 
   const dismiss = () => {
     localStorage.setItem(STORAGE_KEY, '1')
-    setVisible(false)
+    setDismissed(true)
   }
 
   return (

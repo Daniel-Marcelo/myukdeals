@@ -1,6 +1,6 @@
 'use client'
 
-import { useMotionValue, useTransform, motion, animate } from 'framer-motion'
+import { useMotionValue, useTransform, motion, animate, type PanInfo } from 'framer-motion'
 import { useState } from 'react'
 import Image from 'next/image'
 import { Flame, MessageCircle, X, Bookmark, ShoppingBag, ArrowUpRight, TrendingUp } from 'lucide-react'
@@ -57,7 +57,7 @@ export default function DealCard({
     }
   }
 
-  const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
+  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x < -80) dismiss()
     else if (info.offset.x > 80) save()
     else animate(x, 0, { type: 'spring', damping: 25, stiffness: 200 })
@@ -111,7 +111,13 @@ export default function DealCard({
           </p>
           <div className="flex items-center gap-1.5">
             {deal.price && (
-              <span className="text-sm font-bold text-white">{deal.price}</span>
+              deal.price === 'FREE' ? (
+                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold ring-1 ring-emerald-500/20 tracking-wide">
+                  FREE
+                </span>
+              ) : (
+                <span className="text-sm font-bold text-white">{deal.price}</span>
+              )
             )}
             {deal.merchant && (
               <span className="text-xs text-[#8a8f98]">{deal.merchant}</span>

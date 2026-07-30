@@ -2,28 +2,34 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Flame, TrendingUp, Bookmark, MoreHorizontal, RotateCcw, LogOut, Store } from 'lucide-react'
-import DealFeed from '@/components/DealFeed'
-import SavedFeed from '@/components/SavedFeed'
+import Link from 'next/link'
 import SwipeTutorial from '@/components/SwipeTutorial'
 import BlockedMerchantsModal from '@/components/BlockedMerchantsModal'
+import { FeedResetContext } from '@/components/FeedResetContext'
 import { createClient } from '@/lib/supabase-browser'
 import { useRouter, usePathname } from 'next/navigation'
 
 type ActiveTab = 'hot' | 'trending' | 'saved'
 
-export default function HomePage() {
+// Module scope. The iOS viewport only settles once per app launch; without this
+// flag a full reload landing on /saved would re-hide the nav needlessly.
+let viewportSettled = false
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [blockedModalOpen, setBlockedModalOpen] = useState(false)
-  const [feedKey, setFeedKey] = useState(0)
+  const [resetToken, setResetToken] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // On iOS standalone launch the layout viewport starts short and grows once the
   // app is fully presented, so a `fixed bottom-0` bar paints high and then snaps
-  // down. Keep it hidden until innerHeight stops changing.
-  const [navReady, setNavReady] = useState(false)
+  // down. Keep it hidden until innerHeight stops changing. This shell persists
+  // across tab navigations, so it runs once per launch rather than per tap.
+  const [navReady, setNavReady] = useState(viewportSettled)
   useEffect(() => {
+    if (viewportSettled) return
     let lastHeight = window.innerHeight
     let stableTicks = 0
     const interval = setInterval(() => {
@@ -39,6 +45,7 @@ export default function HomePage() {
     function finish() {
       clearInterval(interval)
       clearTimeout(fallback)
+      viewportSettled = true
       setNavReady(true)
     }
     return () => { clearInterval(interval); clearTimeout(fallback) }
@@ -59,10 +66,14 @@ export default function HomePage() {
   const handleResetDismissed = async () => {
     setMenuOpen(false)
     await fetch('/api/reset-dismissed', { method: 'POST' })
-    // Remount DealFeed so its session-dismissed set is cleared and it refetches;
-    // router.refresh() alone would leave that client-side set hiding the deals.
-    setFeedKey(k => k + 1)
+    // Signal the feeds to clear their session-dismissed set and refetch.
+    setResetToken(t => t + 1)
   }
+
+  const tabClass = (tab: ActiveTab) =>
+    `flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+      activeTab === tab ? 'text-indigo-400' : 'text-[#8a8f98] hover:text-white'
+    }`
 
   return (
     <main className="min-h-dvh bg-[#0a0a0f]">
@@ -113,11 +124,9 @@ export default function HomePage() {
       </header>
 
       <div className="pb-20">
-        {activeTab === 'saved' ? (
-          <SavedFeed />
-        ) : (
-          <DealFeed key={feedKey} tab={activeTab} />
-        )}
+        <FeedResetContext.Provider value={resetToken}>
+          {children}
+        </FeedResetContext.Provider>
       </div>
 
       {/* Bottom tab bar */}
@@ -127,38 +136,23 @@ export default function HomePage() {
         }`}
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}
       >
-        <button
-          onClick={() => router.push('/')}
-          className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
-            activeTab === 'hot' ? 'text-indigo-400' : 'text-[#8a8f98] hover:text-white'
-          }`}
-        >
+        <Link href="/" className={tabClass('hot')}>
           <Flame className="w-5 h-5" />
           <span className="text-[10px] font-medium">Hot</span>
-        </button>
-        <button
-          onClick={() => router.push('/trending')}
-          className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
-            activeTab === 'trending' ? 'text-indigo-400' : 'text-[#8a8f98] hover:text-white'
-          }`}
-        >
+        </Link>
+        <Link href="/trending" className={tabClass('trending')}>
           <TrendingUp className="w-5 h-5" />
           <span className="text-[10px] font-medium">Trending</span>
-        </button>
-        <button
-          onClick={() => router.push('/saved')}
-          className={`flex flex-col items-center gap-1 px-5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
-            activeTab === 'saved' ? 'text-indigo-400' : 'text-[#8a8f98] hover:text-white'
-          }`}
-        >
+        </Link>
+        <Link href="/saved" className={tabClass('saved')}>
           <Bookmark className="w-5 h-5" />
           <span className="text-[10px] font-medium">Saved</span>
-        </button>
+        </Link>
       </nav>
       {blockedModalOpen && (
         <BlockedMerchantsModal
           onClose={() => setBlockedModalOpen(false)}
-          onChanged={() => setFeedKey(k => k + 1)}
+          onChanged={() => setResetToken(t => t + 1)}
         />
       )}
     </main>

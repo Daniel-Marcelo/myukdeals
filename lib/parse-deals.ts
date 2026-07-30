@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { formatPrice } from './format-price'
 
 export type HotPeriod = 'today' | 'week' | 'month'
 
@@ -88,7 +89,7 @@ export function parseThreadsFromHtml(
       ? `https://${thread.merchant.merchantUrlName}`
       : null
 
-    const price = thread.price != null ? `£${thread.price}` : null
+    const price = formatPrice(thread.price)
     const image_url = thread.mainImage
       ? `https://images.hotukdeals.com/${thread.mainImage.path}/${thread.mainImage.name}/re/202x202/qt/70/${thread.mainImage.name}.jpg`
       : null

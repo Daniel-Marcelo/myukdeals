@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { Flame, MessageCircle, BookmarkX, ShoppingBag, ArrowUpRight, Clock, AlertCircle, RefreshCw } from 'lucide-react'
-import { useMotionValue, useTransform, motion, animate, AnimatePresence } from 'framer-motion'
+import { useMotionValue, useTransform, motion, animate, AnimatePresence, type PanInfo } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { type Deal } from './DealCard'
 import PullToRefresh from './PullToRefresh'
+import { useFeedReset } from './FeedResetContext'
 import { fetchJson, AuthError } from '@/lib/api'
 import { formatAge } from '@/lib/format'
 
@@ -31,7 +32,7 @@ function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string)
     setTimeout(() => onUnsave(item.deal_id), 300)
   }
 
-  const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
+  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x < -80) unsave()
     else animate(x, 0, { type: 'spring', damping: 25, stiffness: 200 })
   }
@@ -71,7 +72,13 @@ function SavedCard({ item, onUnsave }: { item: SavedItem; onUnsave: (id: string)
           </p>
           <div className="flex items-center gap-1.5">
             {deal.price && (
-              <span className="text-sm font-bold text-white">{deal.price}</span>
+              deal.price === 'FREE' ? (
+                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold ring-1 ring-emerald-500/20 tracking-wide">
+                  FREE
+                </span>
+              ) : (
+                <span className="text-sm font-bold text-white">{deal.price}</span>
+              )
             )}
             {deal.merchant && (
               <span className="text-xs text-[#8a8f98]">{deal.merchant}</span>
@@ -132,6 +139,7 @@ function SkeletonCard() {
 
 export default function SavedFeed() {
   const router = useRouter()
+  const resetToken = useFeedReset()
   const [items, setItems] = useState<SavedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -162,8 +170,19 @@ export default function SavedFeed() {
   }, [router])
 
   useEffect(() => {
+    // Fetch-on-mount: the feed owns its own data loading, so the state update is
+    // the point, not an accident. The rule targets cascading synchronous renders;
+    // this setState lands in an async continuation after the request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSaved()
   }, [fetchSaved])
+
+  // Resync when the shell signals a reset (it no longer remounts us).
+  useEffect(() => {
+    if (resetToken === 0) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchSaved()
+  }, [resetToken, fetchSaved])
 
   const handleUnsave = async (deal_id: string) => {
     const prev = items

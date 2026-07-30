@@ -35,6 +35,15 @@ describe('parseThreadsFromHtml', () => {
     }
   })
 
+  it('formats every price as FREE or a well-formed sterling amount', () => {
+    // Catches the three real bugs in the raw `£${thread.price}` concatenation:
+    // "£2.5" (one decimal), "£11195" (no separator), "£0" (should be FREE).
+    for (const d of deals) {
+      if (d.price === null) continue
+      expect(d.price).toMatch(/^(FREE|£\d{1,3}(,\d{3})*(\.\d{2})?)$/)
+    }
+  })
+
   it('most deals carry a price and a merchant', () => {
     const priced = deals.filter((d) => d.price).length
     const withMerchant = deals.filter((d) => d.merchant).length

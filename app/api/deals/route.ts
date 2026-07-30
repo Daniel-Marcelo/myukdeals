@@ -2,11 +2,11 @@ import { NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { supabase } from '@/lib/supabase'
 import { scrapeIfStale, getLastScraped } from '@/lib/scraper'
+import { STALE_MS } from '@/lib/scrape-policy'
+import { filterDeals } from '@/lib/filter-deals'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
-
-const STALE_MS = 30 * 60 * 1000
 
 export async function GET(request: Request) {
   const client = await createClient()
@@ -66,19 +66,8 @@ export async function GET(request: Request) {
       .in('deal_id', ids)
     dismissedIds = dismissedRows?.map((r) => r.deal_id) ?? []
   }
-  const dismissedSet = new Set(dismissedIds.map(String))
 
-  const deals = candidates.filter((d) => {
-    if (dismissedSet.has(String(d.id))) return false
-    if (
-      blockedMerchants.length > 0 &&
-      d.merchant &&
-      blockedMerchants.includes(d.merchant.toLowerCase().trim())
-    ) {
-      return false
-    }
-    return true
-  })
+  const deals = filterDeals(candidates, dismissedIds, blockedMerchants)
 
   return NextResponse.json(
     { deals, last_scraped_at: lastScraped, refreshing: isStale },

@@ -1,8 +1,10 @@
 import { supabaseAdmin } from './supabase-admin'
 import { parseThreadsFromHtml, type Deal, type HotPeriod } from './parse-deals'
+import { shouldScrape, FETCH_TIMEOUT_MS } from './scrape-policy'
 
 // Re-export so existing importers keep resolving these from '@/lib/scraper'.
 export type { Deal, HotPeriod }
+export { shouldScrape, STALE_MS } from './scrape-policy'
 
 const TAB_URLS: Record<'hot' | 'trending', string> = {
   hot: 'https://www.hotukdeals.com/hottest',
@@ -16,27 +18,47 @@ const PERIOD_COOKIE: Record<HotPeriod, string> = {
 }
 
 const PAGES_TO_SCRAPE = 3
-const STALE_MS = 30 * 60 * 1000
+
+/**
+ * Fetch one HotUKDeals page, retrying once on failure.
+ *
+ * The timeout is not optional: without it a hung connection blocks until the
+ * platform kills the whole function, which strands the scrape lock and leaves
+ * the feed frozen until the lock TTL expires.
+ */
+async function fetchPage(url: string, cookie: string): Promise<string> {
+  const headers: Record<string, string> = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-GB,en;q=0.9',
+    'Referer': 'https://www.hotukdeals.com/',
+    ...(cookie ? { Cookie: cookie } : {}),
+  }
+
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers,
+        next: { revalidate: 0 },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      })
+      if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
+      return await res.text()
+    } catch (err) {
+      lastErr = err
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 750))
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(`Failed to fetch ${url}`)
+}
 
 async function scrapePage(tab: 'hot' | 'trending', page: number, indexOffset: number, period: HotPeriod): Promise<Deal[]> {
   const baseUrl = TAB_URLS[tab]
   const url = page === 1 ? baseUrl : `${baseUrl}?page=${page}`
   const cookie = tab === 'hot' ? `navi=${PERIOD_COOKIE[period]}` : ''
 
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-GB,en;q=0.9',
-      'Referer': 'https://www.hotukdeals.com/',
-      ...(cookie ? { 'Cookie': cookie } : {}),
-    },
-    next: { revalidate: 0 },
-  })
-
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
-
-  const html = await res.text()
+  const html = await fetchPage(url, cookie)
   return parseThreadsFromHtml(html, tab, period, indexOffset)
 }
 
@@ -88,6 +110,19 @@ async function recordScrape(tab: 'hot' | 'trending', period: HotPeriod): Promise
   )
 }
 
+/** Reads a meta key as epoch ms. Missing or corrupted values become 0 (= "very old"). */
+async function readMetaTime(key: string): Promise<number> {
+  const { data } = await supabaseAdmin.from('meta').select('value').eq('key', key).maybeSingle()
+  const parsed = data?.value ? Date.parse(data.value) : 0
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+async function writeMetaTime(key: string, ms: number): Promise<void> {
+  await supabaseAdmin
+    .from('meta')
+    .upsert({ key, value: new Date(ms).toISOString() }, { onConflict: 'key' })
+}
+
 /** Latest successful scrape time (ISO) for a tab/period, or null if never scraped. */
 export async function getLastScraped(tab: 'hot' | 'trending', period: HotPeriod): Promise<string | null> {
   const { data } = await supabaseAdmin
@@ -100,28 +135,35 @@ export async function getLastScraped(tab: 'hot' | 'trending', period: HotPeriod)
 
 /**
  * Self-heal: if the tab/period hasn't been scraped in STALE_MS, scrape it now.
- * Returns true if a scrape ran. Safe to call from multiple concurrent requests —
- * it claims the freshness slot before scraping so they don't pile up.
+ * Returns true if a scrape ran AND committed.
+ *
+ * Concurrency is handled by a SEPARATE `scrape_lock:*` key, never by the
+ * user-facing `last_scraped:*` key. Claiming the lock must not make the feed
+ * claim to be fresh — `last_scraped` is written only by recordScrape(), after
+ * replace_deals() has committed — otherwise the UI reports "Updated just now"
+ * over deals that are still 45 minutes old.
  */
 export async function scrapeIfStale(tab: 'hot' | 'trending', period: HotPeriod): Promise<boolean> {
-  const key = `last_scraped:${tab}:${period}`
-  const { data } = await supabaseAdmin.from('meta').select('value').eq('key', key).maybeSingle()
-  const last = data?.value ? Date.parse(data.value) : 0
-  // NaN (corrupted value) compares false here, correctly treated as stale.
-  if (Date.now() - last < STALE_MS) return false
+  const freshKey = `last_scraped:${tab}:${period}`
+  const lockKey = `scrape_lock:${tab}:${period}`
 
-  // Claim the slot BEFORE scraping so a concurrent request sees "fresh" and skips.
-  await supabaseAdmin.from('meta').upsert({ key, value: new Date().toISOString() }, { onConflict: 'key' })
+  const [lastSuccess, lockedAt] = await Promise.all([
+    readMetaTime(freshKey),
+    readMetaTime(lockKey),
+  ])
+  if (!shouldScrape(lastSuccess, lockedAt, Date.now())) return false
+
+  await writeMetaTime(lockKey, Date.now())
   try {
-    await scrapeTabNow(tab, period)
+    await scrapeTabNow(tab, period) // writes last_scraped on success
     return true
   } catch (err) {
     console.error(`Self-heal scrape failed for ${tab}/${period}:`, err)
-    // Restore a stale timestamp so the next request retries instead of waiting 30 min.
-    // Guard against a non-finite `last` (corrupted value) — new Date(NaN).toISOString() throws.
-    const restore = Number.isFinite(last) && last > 0 ? new Date(last).toISOString() : new Date(0).toISOString()
-    await supabaseAdmin.from('meta').upsert({ key, value: restore }, { onConflict: 'key' })
     return false
+  } finally {
+    // Release the lock either way so the next request can retry immediately
+    // instead of waiting out the TTL.
+    await writeMetaTime(lockKey, 0)
   }
 }
 

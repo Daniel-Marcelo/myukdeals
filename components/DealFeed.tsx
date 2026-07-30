@@ -6,10 +6,27 @@ import { RefreshCw, AlertCircle, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import DealCard, { type Deal } from './DealCard'
 import PullToRefresh from './PullToRefresh'
+import { useFeedReset } from './FeedResetContext'
 import { fetchJson, AuthError } from '@/lib/api'
 import { formatAge } from '@/lib/format'
 
 type DealsResponse = { deals: Deal[]; last_scraped_at: string | null; refreshing: boolean }
+
+const POLL_DELAYS_MS = [5000, 8000, 12000, 20000, 30000]
+
+// Module scope, so both survive the remount that a tab navigation causes —
+// /, /trending and /saved are sibling route segments, so this component is torn
+// down and rebuilt on every tab switch even though the shell around it persists.
+
+// Last response per tab:period. Purely a paint optimisation: every cache hit is
+// revalidated immediately, and a full reload clears it.
+const feedCache = new Map<string, DealsResponse>()
+
+// Deals dismissed this session. The server also filters dismissed deals, but a
+// tab/period switch can refetch before the dismiss row commits — this set keeps
+// a just-dismissed deal from flashing back on the other feed. Keyed on deal_id,
+// which is shared across feeds, so it hides the deal everywhere.
+const dismissedThisSession = new Set<string>()
 
 function SkeletonCard() {
   return (
@@ -26,51 +43,60 @@ function SkeletonCard() {
 
 export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   const router = useRouter()
-  const [deals, setDeals] = useState<Deal[]>([])
-  const [loading, setLoading] = useState(true)
+  const resetToken = useFeedReset()
+  const cached = feedCache.get(`${tab}:today`)
+  const [deals, setDeals] = useState<Deal[]>(
+    () => (cached?.deals ?? []).filter(d => !dismissedThisSession.has(String(d.id)))
+  )
+  const [loading, setLoading] = useState(!cached)
   const [error, setError] = useState<string | null>(null)
   const [period, setPeriod] = useState<'today' | 'week'>('today')
-  const [lastScrapedAt, setLastScrapedAt] = useState<string | null>(null)
+  const [lastScrapedAt, setLastScrapedAt] = useState<string | null>(cached?.last_scraped_at ?? null)
   const [refreshing, setRefreshing] = useState(false)
-  const refetchedKeys = useRef<Set<string>>(new Set())
-  // Deals dismissed this session. The server also filters dismissed deals, but a
-  // period/tab switch can refetch before the dismiss row commits — this set keeps
-  // a just-dismissed deal from flashing back on the other feed. Keyed on deal_id,
-  // which is shared across feeds, so it hides the deal everywhere.
-  const dismissedIds = useRef<Set<string>>(new Set())
+  // Bounded backoff for the "a background scrape is running" case. We poll until
+  // last_scraped_at actually ADVANCES past the value we started with — the server
+  // writes it only after a scrape commits, so it's a truthful completion signal.
+  // Budget totals ~75s, deliberately longer than a worst-case scrape.
+  const pollAttempt = useRef(0)
+  const pollBaseline = useRef<string | null>(null)
 
-  const applyResponse = (data: DealsResponse) => {
-    setDeals((data.deals ?? []).filter(d => !dismissedIds.current.has(String(d.id))))
+  const applyResponse = useCallback((data: DealsResponse, activePeriod: 'today' | 'week') => {
+    feedCache.set(`${tab}:${activePeriod}`, data)
+    setDeals((data.deals ?? []).filter(d => !dismissedThisSession.has(String(d.id))))
     setLastScrapedAt(data.last_scraped_at ?? null)
     setRefreshing(Boolean(data.refreshing))
-  }
+  }, [tab])
 
   const fetchDeals = useCallback(async (p?: 'today' | 'week') => {
     const activePeriod = p ?? period
-    setLoading(true)
+    // A new feed gets a full poll budget.
+    pollAttempt.current = 0
+    pollBaseline.current = null
+    // Only show the skeleton when there's nothing cached to paint.
+    if (!feedCache.has(`${tab}:${activePeriod}`)) setLoading(true)
     setError(null)
     try {
       const data = await fetchJson<DealsResponse>(`/api/deals?tab=${tab}&period=${activePeriod}`)
-      applyResponse(data)
+      applyResponse(data, activePeriod)
     } catch (err) {
       if (err instanceof AuthError) { router.push('/auth'); return }
       setError(err instanceof Error ? err.message : 'Could not load deals')
     } finally {
       setLoading(false)
     }
-  }, [tab, period, router])
+  }, [tab, period, router, applyResponse])
 
   // Used by pull-to-refresh and the auto re-fetch — no full-screen skeleton.
   const refresh = useCallback(async () => {
     try {
       const data = await fetchJson<DealsResponse>(`/api/deals?tab=${tab}&period=${period}`)
-      applyResponse(data)
+      applyResponse(data, period)
       setError(null)
     } catch (err) {
       if (err instanceof AuthError) { router.push('/auth'); return }
       setError(err instanceof Error ? err.message : 'Could not refresh')
     }
-  }, [tab, period, router])
+  }, [tab, period, router, applyResponse])
 
   const handlePeriodChange = (p: 'today' | 'week') => {
     setPeriod(p)
@@ -78,24 +104,61 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
   }
 
   useEffect(() => {
+    // Fetch-on-mount: the feed owns its own data loading, so the state update is
+    // the point, not an accident. The rule targets cascading synchronous renders;
+    // this setState lands in an async continuation after the request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDeals()
   }, [fetchDeals])
 
-  // When the server reports it kicked off a background scrape (refreshing), pull
-  // fresh data once ~20s later. Guarded per tab:period so a persistently failing
-  // scrape can't turn this into a poll loop.
+  // "Reset dismissed" / blocked-retailer changes come from the shell, which no
+  // longer remounts us. Clear the session set and refetch instead.
   useEffect(() => {
-    if (!refreshing) return
-    const key = `${tab}:${period}`
-    if (refetchedKeys.current.has(key)) return
-    refetchedKeys.current.add(key)
-    const t = setTimeout(() => { refresh() }, 20000)
+    if (resetToken === 0) return // initial mount — fetchDeals already ran
+    dismissedThisSession.clear()
+    feedCache.clear()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDeals()
+    // fetchDeals is intentionally omitted: it changes identity on every period
+    // switch, and re-running this effect then would double-fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetToken])
+
+  // When the server reports it kicked off a background scrape (refreshing), poll
+  // with backoff until last_scraped_at advances — that only happens once the
+  // scrape has committed. Bounded, so a persistently failing scrape can't turn
+  // this into an endless poll loop.
+  useEffect(() => {
+    if (!refreshing) {
+      pollAttempt.current = 0
+      pollBaseline.current = null
+      return
+    }
+    // First tick of a refresh cycle: remember what "stale" looked like.
+    if (pollBaseline.current === null) pollBaseline.current = lastScrapedAt ?? ''
+
+    // The scrape landed — stop polling.
+    if (lastScrapedAt && lastScrapedAt !== pollBaseline.current) {
+      pollAttempt.current = 0
+      pollBaseline.current = null
+      return
+    }
+
+    const delay = POLL_DELAYS_MS[pollAttempt.current]
+    if (delay === undefined) return // budget exhausted — pull-to-refresh still works
+
+    pollAttempt.current += 1
+    const t = setTimeout(() => {
+      // Don't burn requests while the PWA is backgrounded on the phone.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      refresh()
+    }, delay)
     return () => clearTimeout(t)
-  }, [refreshing, tab, period, refresh])
+  }, [refreshing, lastScrapedAt, tab, period, refresh])
 
   const handleDismiss = async (id: string) => {
     const prev = deals
-    dismissedIds.current.add(String(id))
+    dismissedThisSession.add(String(id))
     setDeals(cur => cur.filter(d => d.id !== id)) // optimistic
     try {
       await fetchJson('/api/dismiss', {
@@ -105,7 +168,7 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
       })
     } catch (err) {
       if (err instanceof AuthError) { router.push('/auth'); return }
-      dismissedIds.current.delete(String(id))
+      dismissedThisSession.delete(String(id))
       setDeals(prev) // roll back — the deal is still live
       setError('Could not dismiss — try again')
     }
@@ -211,8 +274,15 @@ export default function DealFeed({ tab }: { tab: 'hot' | 'trending' }) {
               </button>
               <button
                 onClick={async () => {
-                  await fetch('/api/reset-dismissed', { method: 'POST' })
-                  dismissedIds.current.clear()
+                  try {
+                    await fetchJson('/api/reset-dismissed', { method: 'POST' })
+                  } catch (err) {
+                    if (err instanceof AuthError) { router.push('/auth'); return }
+                    setError('Could not reset — try again')
+                    return
+                  }
+                  dismissedThisSession.clear()
+                  feedCache.clear()
                   fetchDeals()
                 }}
                 className="mt-3 text-xs text-[#8a8f98]/60 hover:text-[#8a8f98] transition-colors cursor-pointer"
