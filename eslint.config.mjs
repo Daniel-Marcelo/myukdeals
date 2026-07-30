@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored Claude skill scripts — CommonJS tooling, not app source. They are
+    // committed, so CI lints them even when absent from a local working tree;
+    // without this the lint job fails on their require() imports.
+    ".claude/**",
   ]),
 ]);
 
